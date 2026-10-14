@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/SeKondBrainAILabs/kemory-cli/blob/main/SECURITY.md
+    about: Do not open a public issue. Report privately to security@sekondbrain.ai.
+  - name: Kemory service, API or account
+    url: https://docs.sekondbrain.ai/kemory/
+    about: This repo is only the command-line client. Anything about Kemory itself belongs in the docs or with support.

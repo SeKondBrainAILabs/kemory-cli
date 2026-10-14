@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in the kemory CLI does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most problems are setup problems, and `kemory doctor` names them directly.
+        Please run it first and paste the output — it saves a round trip.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: kemory doctor output
+      description: Redact anything you would rather not publish. It prints no credentials.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CLI version
+      description: The output of `kemory --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Homebrew
+        - npx / npm
+        - uvx / pip
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact command, and its exit code (`echo $?`).

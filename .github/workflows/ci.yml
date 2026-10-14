@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  public-hygiene:
+    # Files in this repo are published as open source; keep internal
+    # references out of them.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: scripts/check-public-hygiene.sh
+
+  workflows:
+    # Lint and security-audit the workflows themselves.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uvx zizmor@1.29.0 --format plain .github/workflows/
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - name: Test
+        shell: bash
+        run: |
+          # The race detector needs cgo, which the Windows runner lacks.
+          if [ "$RUNNER_OS" = "Windows" ]; then go test ./...; else go test -race -coverprofile=coverage.out ./...; fi
+      - name: Coverage
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%", "", $3); print $3}')
+          echo "### Test coverage: ${total}%" >> "$GITHUB_STEP_SUMMARY"
+          # A floor, not a target: it stops coverage from quietly eroding.
+          awk -v t="$total" 'BEGIN { exit (t + 0 < 70) }' || { echo "::error::coverage ${total}% is below the 70% floor"; exit 1; }
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+
+  snapshot:
+    # All five release targets build from this one runner.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          # Release builds never restore a cache another workflow could have
+          # written (zizmor cache-poisoning).
+          cache: false
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.18.2
+          args: release --snapshot --clean
+      - name: Smoke-test the linux-x64 build
+        run: |
+          set -euo pipefail
+          ls -la dist/*.tar.gz dist/*.zip
+          test "$(find dist -maxdepth 1 \( -name '*.tar.gz' -o -name '*.zip' \) | wc -l)" -eq 5
+          mkdir smoke && tar -xzf dist/kemory-linux-x64.tar.gz -C smoke
+          ./smoke/kemory --version
+      - name: Build and install the PyPI wheels
+        run: |
+          set -euo pipefail
+          python3 packaging/pypi/build_wheels.py --version 0.0.0 --dist dist --out dist/wheels
+          test "$(find dist/wheels -name '*.whl' | wc -l)" -eq 5
+          python3 -m venv /tmp/wheel-smoke
+          /tmp/wheel-smoke/bin/pip install dist/wheels/kemory-*-manylinux_2_17_x86_64*.whl
+          /tmp/wheel-smoke/bin/kemory --version
+      - name: Test the npm launcher
+        run: node --test packaging/npm/test/launcher.test.js

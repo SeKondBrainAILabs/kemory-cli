@@ -1,0 +1,64 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose     # every HTTP response body is closed
+    - copyloopvar
+    - errorlint     # errors are compared with errors.Is / errors.As
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx         # every outbound request carries a context
+    - nolintlint    # a //nolint must name the linter and say why
+    - revive
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  settings:
+    errcheck:
+      # Writing to the terminal and closing a response body have no useful
+      # failure handling. Everything else must be checked.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Writer).Write
+        - (io.Closer).Close
+        - (*text/tabwriter.Writer).Flush
+    gosec:
+      excludes:
+        - G304 # reading files from paths the user configured is the point of a CLI
+    # misspell runs without a locale: it catches real misspellings, while
+    # protocol names (initialize, X-Organization-ID, NO_COLOR) and British
+    # prose ("organisation") both stay valid.
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: error-strings
+        - name: error-naming
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: unused-parameter
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [errcheck, gosec, noctx, bodyclose]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/SeKondBrainAILabs/kemory-cli

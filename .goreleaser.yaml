@@ -1,0 +1,44 @@
+# Builds the five release targets from one Linux runner. Archive names match
+# the existing Homebrew tap and npm launcher (kemory-<os>-<arch>), so the
+# release channels can switch to these builds without renaming anything.
+version: 2
+project_name: kemory
+
+builds:
+  - id: kemory
+    main: ./cmd/kemory
+    binary: kemory
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/SeKondBrainAILabs/kemory-cli/internal/version.Version={{ .Version }}
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: kemory
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      kemory-{{ if eq .Os "darwin" }}macos{{ else }}{{ .Os }}{{ end }}-{{ if eq .Arch "amd64" }}x64{{ else }}{{ .Arch }}{{ end }}
+    files: [LICENSE, README.md]
+
+checksum:
+  # The release workflow also writes one <archive>.sha256 per archive from
+  # this file: the npm launcher and the Homebrew formula verify each download
+  # against its own sidecar.
+  name_template: checksums.txt
+
+changelog:
+  use: github-native
+
+# Tag pushes publish a GitHub Release in this repo. The release workflow
+# then mirrors the archives to the Homebrew tap and publishes npm and PyPI.
+release:
+  draft: false
+  prerelease: auto

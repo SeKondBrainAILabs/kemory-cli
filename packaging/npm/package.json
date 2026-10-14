@@ -1,0 +1,41 @@
+{
+  "name": "kemory",
+  "version": "0.0.0-dev",
+  "description": "Kemory CLI: connect Claude Code, Cursor and other MCP clients to your Kemory memory vault",
+  "homepage": "https://kemory.sekondbrain.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SeKondBrainAILabs/kemory-cli.git",
+    "directory": "packaging/npm"
+  },
+  "license": "MIT",
+  "author": "SeKondBrain Engineering <engineering@sekondbrain.ai>",
+  "keywords": [
+    "kemory",
+    "memory",
+    "mcp",
+    "ai",
+    "agents",
+    "claude"
+  ],
+  "bin": {
+    "kemory": "bin/kemory.js"
+  },
+  "files": [
+    "bin/kemory.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "arm64",
+    "x64"
+  ]
+}
