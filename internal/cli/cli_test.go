@@ -15,6 +15,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
 )
 
@@ -26,6 +27,11 @@ func setHome(t *testing.T) string {
 	for _, k := range []string{"KEMORY_ENV", "KEMORY_OUTPUT", "NO_COLOR", "KEMORY_API_KEY", "KEMORY_LAUNCHER", "UV", "XDG_CONFIG_HOME", "CODEX_HOME"} {
 		t.Setenv(k, "")
 	}
+	// Whether Claude Desktop is open on the machine running the tests must not
+	// change what they see.
+	running := hosts.RunningCheck
+	hosts.RunningCheck = func(string) bool { return false }
+	t.Cleanup(func() { hosts.RunningCheck = running })
 	// MCP host configs on Windows live under %APPDATA%.
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	// Tests never reach a real Kemory: anything not pointed at a fake server

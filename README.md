@@ -93,6 +93,10 @@ On Windows the files under `Library/Application Support` and `.config` live in
 `%APPDATA%` instead. Grok also reads `~/.claude.json`, so the `claude-code`
 entry reaches it too.
 
+Claude Desktop rewrites its config file from memory while it runs, which drops
+an entry added in the meantime. Quit it completely (⌘Q on macOS) before
+connecting it; kemory leaves its config alone while it is open and says so.
+
 ## Exit codes
 
 Scripts and agents can act on why a command failed:

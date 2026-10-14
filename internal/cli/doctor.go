@@ -316,6 +316,9 @@ func (d *doctor) checkHosts() bool {
 				continue
 			}
 			d.emit(label, render.Pass, "removed kemory entry — "+host+" is not installed")
+		case installed && hosts.RunningCheck(host):
+			// --fix cannot help while the app is open, so it is not offered.
+			d.emit(label, render.Skip, "installed, not connected — "+closeFirst(host))
 		case installed:
 			if !d.fix {
 				fixable = true

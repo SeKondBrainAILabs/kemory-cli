@@ -105,6 +105,10 @@ func installHosts(g *globals, hostNames []string, configPath, name string) error
 	written := map[string]bool{}
 	var lines []hostResult
 	for _, h := range targets {
+		if hosts.RunningCheck(h) {
+			lines = append(lines, hostResult{host: h, detail: closeFirst(h)})
+			continue
+		}
 		path := hosts.ResolveConfig(h)
 		if err := hosts.WriteEntry(h, path, name, launch); err != nil {
 			lines = append(lines, hostResult{host: h, detail: err.Error()})
@@ -132,6 +136,13 @@ func installHosts(g *globals, hostNames []string, configPath, name string) error
 		render.Echo("Warp auto-detects .mcp.json on save — no restart needed.")
 	}
 	return nil
+}
+
+// closeFirst explains why an app that rewrites its config while it runs was
+// left alone, and what to do instead.
+func closeFirst(host string) string {
+	return fmt.Sprintf("the app is open and rewrites its config from memory, which would drop the entry. "+
+		"Quit it completely (⌘Q on macOS), then run `kemory mcp install --host %s`.", host)
 }
 
 func contains(list []string, s string) bool {

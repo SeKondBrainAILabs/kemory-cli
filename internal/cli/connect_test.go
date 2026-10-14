@@ -12,6 +12,7 @@ import (
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/releases"
 )
 
@@ -336,5 +337,36 @@ func TestDoctorShowsExpiryAsATime(t *testing.T) {
 		if got := expiry(epoch, now); got != want {
 			t.Errorf("expiry: got %q, want %q", got, want)
 		}
+	}
+}
+
+func TestAnOpenClaudeDesktopIsLeftAloneWithTheReason(t *testing.T) {
+	home := setHome(t)
+	fakeReleases(t, `[]`)
+	installApp(t, home, filepath.Join("Library", "Application Support", "Claude"))
+	hosts.RunningCheck = func(name string) bool { return name == "claude-desktop" }
+	config := hosts.ResolveConfig("claude-desktop")
+
+	code, _, errOut := run(t, "mcp", "install", "--host", "claude-desktop")
+	if code != 0 || !strings.Contains(errOut, "Quit it completely") {
+		t.Fatalf("got %d %q", code, errOut)
+	}
+	if _, err := os.Stat(config); !os.IsNotExist(err) {
+		t.Fatal("wrote a config the open app would overwrite")
+	}
+
+	_, report := runDoctor(t, "--fix")
+	for _, c := range report.Checks {
+		if c.Check == "mcp host: claude-desktop" && (c.Status != "skip" || c.Detail == nil || !strings.Contains(*c.Detail, "Quit it completely")) {
+			t.Fatalf("doctor: %+v", c)
+		}
+	}
+	if _, err := os.Stat(config); !os.IsNotExist(err) {
+		t.Fatal("doctor --fix wrote a config the open app would overwrite")
+	}
+
+	hosts.RunningCheck = func(string) bool { return false }
+	if code, _, _ := run(t, "mcp", "install", "--host", "claude-desktop"); code != 0 || mcpServers(t, config)["kemory"] == nil {
+		t.Fatal("a closed app's config must be written")
 	}
 }
