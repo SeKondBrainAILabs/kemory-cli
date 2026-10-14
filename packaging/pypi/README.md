@@ -8,7 +8,7 @@ The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persisten
 uvx kemory connect
 ```
 
-This signs you in through the browser, writes the Kemory MCP server entry for the MCP clients installed on this machine (Claude Code, Claude Desktop, Cursor and others), and checks that the connection works. It is safe to re-run.
+This signs you in through the browser, writes the Kemory MCP server entry for the MCP clients installed on this machine (Claude Code, Codex, Cursor, VS Code and others), and checks that the connection works. It is safe to re-run.
 
 This package contains the native `kemory` binary for your platform; it has no Python dependencies.
 

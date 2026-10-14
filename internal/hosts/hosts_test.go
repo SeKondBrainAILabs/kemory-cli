@@ -17,6 +17,8 @@ func setHome(t *testing.T) string {
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	t.Setenv("KEMORY_LAUNCHER", "")
 	t.Setenv("UV", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("CODEX_HOME", "")
 	return dir
 }
 
@@ -64,7 +66,7 @@ func TestAConfigWeCreatedDoesNotMakeAHostInstalled(t *testing.T) {
 func TestWriteEntryCreatesTheFileWithTheBridgeCommand(t *testing.T) {
 	home := setHome(t)
 	path := filepath.Join(home, ".cursor", "mcp.json")
-	if err := WriteEntry(path, "kemory", LaunchFor("prod")); err != nil {
+	if err := WriteEntry("cursor", path, "kemory", LaunchFor("prod")); err != nil {
 		t.Fatal(err)
 	}
 	got := servers(t, path)["kemory"]
@@ -78,10 +80,10 @@ func TestWriteEntryLeavesTheUsersConfigAlone(t *testing.T) {
 	path := filepath.Join(home, ".claude.json")
 	original := "{\n  \"numStartups\": 12,\n  \"shell\": \"a && b\",\n  \"mcpServers\": {\n    \"other\": {\"command\": \"x\"}\n  }\n}\n"
 	mustWrite(t, path, original)
-	if err := WriteEntry(path, "kemory", LaunchFor("prod")); err != nil {
+	if err := WriteEntry("claude-code", path, "kemory", LaunchFor("prod")); err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteEntry(path, "kemory", LaunchFor("prod")); err != nil { // idempotent
+	if err := WriteEntry("claude-code", path, "kemory", LaunchFor("prod")); err != nil { // idempotent
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(path)
@@ -104,7 +106,7 @@ func TestInvalidConfigIsRefusedAndUntouched(t *testing.T) {
 	home := setHome(t)
 	path := filepath.Join(home, ".cursor", "mcp.json")
 	mustWrite(t, path, "{ not json ]")
-	err := WriteEntry(path, "kemory", LaunchFor("prod"))
+	err := WriteEntry("cursor", path, "kemory", LaunchFor("prod"))
 	if err == nil || !strings.Contains(err.Error(), "not valid JSON") {
 		t.Fatalf("got %v", err)
 	}
@@ -125,7 +127,7 @@ func TestLaunchUnderNPX(t *testing.T) {
 func TestRemoveEntriesDeletesOnlyWhatKemoryCreated(t *testing.T) {
 	home := setHome(t)
 	ours := filepath.Join(home, ".warp", ".mcp.json")
-	if err := WriteEntry(ours, "kemory", LaunchFor("prod")); err != nil {
+	if err := WriteEntry("warp", ours, "kemory", LaunchFor("prod")); err != nil {
 		t.Fatal(err)
 	}
 	if err := RemoveEntries("warp", ours, []string{"kemory"}); err != nil {
@@ -149,7 +151,7 @@ func TestKemoryEntriesAndPluginDetection(t *testing.T) {
 	home := setHome(t)
 	path := filepath.Join(home, ".claude.json")
 	mustWrite(t, path, `{"mcpServers": {"kemory": {}, "kemory-india": {}, "github": {}}}`)
-	if got := KemoryEntries(path); strings.Join(got, ",") != "kemory,kemory-india" {
+	if got := KemoryEntries("claude-code", path); strings.Join(got, ",") != "kemory,kemory-india" {
 		t.Fatalf("entries: %v", got)
 	}
 	if ClaudeCodePluginSettings() != "" {

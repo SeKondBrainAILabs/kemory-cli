@@ -256,7 +256,7 @@ func (d *doctor) checkHosts() bool {
 	for _, host := range hosts.Names {
 		installed := hosts.Installed(host)
 		path := hosts.ResolveConfig(host)
-		entries := hosts.KemoryEntries(path)
+		entries := hosts.KemoryEntries(host, path)
 		label := "mcp host: " + host
 		plugin := ""
 		if host == "claude-code" && len(entries) == 0 {
@@ -286,7 +286,7 @@ func (d *doctor) checkHosts() bool {
 				d.emit(label, render.Skip, "installed, not connected")
 				continue
 			}
-			if err := hosts.WriteEntry(path, d.g.profile.ServerName, launch); err != nil {
+			if err := hosts.WriteEntry(host, path, d.g.profile.ServerName, launch); err != nil {
 				d.emit(label, render.Fail, err.Error())
 				continue
 			}

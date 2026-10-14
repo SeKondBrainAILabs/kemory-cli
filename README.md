@@ -5,7 +5,7 @@
 
 The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persistent
 memory vault for AI agents. It signs you in, connects MCP clients such as Claude
-Code, Claude Desktop and Cursor to your vault, and runs the MCP bridge they use.
+Code, Codex, Cursor and VS Code to your vault, and runs the MCP bridge they use.
 
 > **Not released yet.** The first release from this repository will be 0.7.0.
 > Until then, `brew`, `npx kemory` and `uvx kemory` install the previous CLI (0.6.x).
@@ -31,6 +31,33 @@ Code, Claude Desktop and Cursor to your vault, and runs the MCP bridge they use.
 
 Every command accepts `--output json` for scripts and agents (stdout then
 carries only the JSON payload), `--quiet`, `--no-color` and `--env <name>`.
+
+## MCP clients
+
+`kemory connect --host <name>` and `kemory mcp install --host <name>` write the
+entry for one client, and `--host all` writes it for every client installed on
+this machine. The entry only starts `kemory mcp serve`; no token or key is
+written into the client's config. Everything else in the file is left as it was.
+
+| `--host` | Client | Config file (macOS and Linux) |
+|---|---|---|
+| `claude-code` | Claude Code | `~/.claude.json` |
+| `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| `codex` | OpenAI Codex | `~/.codex/config.toml`, or `$CODEX_HOME/config.toml` |
+| `cursor` | Cursor | `~/.cursor/mcp.json` |
+| `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json` |
+| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` |
+| `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
+| `windsurf` | Windsurf / Devin Desktop | `~/.config/devin/mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` for older installs |
+| `cline` | Cline | the VS Code extension's `cline_mcp_settings.json`, or `~/.cline/data/settings/cline_mcp_settings.json` |
+| `kiro` | Kiro | `~/.kiro/settings/mcp.json` |
+| `grok` | Grok CLI | `~/.grok/config.toml` |
+| `continue` | Continue | `~/.continue/mcpServers/kemory.json` |
+| `warp` | Warp | `~/.warp/.mcp.json` |
+
+On Windows the files under `Library/Application Support` and `.config` live in
+`%APPDATA%` instead. Grok also reads `~/.claude.json`, so the `claude-code`
+entry reaches it too.
 
 ## Exit codes
 

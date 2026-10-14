@@ -104,6 +104,23 @@ func TestMCPInstallAllWiresOnlyInstalledHosts(t *testing.T) {
 	}
 }
 
+func TestMCPInstallConfigUsesTheHostsFormat(t *testing.T) {
+	home := setHome(t)
+	path := filepath.Join(home, "shared", "codex.toml")
+	if code, out, _ := run(t, "mcp", "install", "--host", "codex", "--config", path); code != 0 || !strings.Contains(out, path) {
+		t.Fatalf("got %d %q", code, out)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.HasPrefix(string(data), "[mcp_servers.kemory]\n") {
+		t.Fatalf("got %q %v", data, err)
+	}
+	for _, hostArg := range []string{"codex,cursor", "all"} {
+		if code, _, _ := run(t, "mcp", "install", "--host", hostArg, "--config", path); code != exits.Usage {
+			t.Fatalf("--host %s with --config: got %d", hostArg, code)
+		}
+	}
+}
+
 func TestMCPInstallRejectsAnUnknownHost(t *testing.T) {
 	setHome(t)
 	if code, _, _ := run(t, "mcp", "install", "--host", "vim"); code != exits.Usage {

@@ -23,9 +23,11 @@ func setHome(t *testing.T) string {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
-	for _, k := range []string{"KEMORY_ENV", "KEMORY_OUTPUT", "NO_COLOR", "KEMORY_API_KEY", "KEMORY_LAUNCHER", "UV"} {
+	for _, k := range []string{"KEMORY_ENV", "KEMORY_OUTPUT", "NO_COLOR", "KEMORY_API_KEY", "KEMORY_LAUNCHER", "UV", "XDG_CONFIG_HOME", "CODEX_HOME"} {
 		t.Setenv(k, "")
 	}
+	// MCP host configs on Windows live under %APPDATA%.
+	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	// Tests never reach a real Kemory: anything not pointed at a fake server
 	// goes to a closed local port.
 	t.Setenv("KEMORY_URL", "http://127.0.0.1:1")

@@ -46,8 +46,8 @@ func newMCPInstallCmd(g *globals) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringSliceVar(&hostNames, "host", []string{"claude-code"}, "MCP host(s) to configure: "+hostChoices()+".")
-	cmd.Flags().StringVar(&configPath, "config", "", "Write to this config file instead of detecting the host's.")
-	cmd.Flags().StringVar(&name, "name", "", "Server name under mcpServers (default: the env's, so envs don't collide).")
+	cmd.Flags().StringVar(&configPath, "config", "", "Write to this config file, in the --host's format, instead of the host's own.")
+	cmd.Flags().StringVar(&name, "name", "", "Server name in the host's config (default: the env's, so envs don't collide).")
 	return cmd
 }
 
@@ -62,7 +62,10 @@ func installHosts(g *globals, hostNames []string, configPath, name string) error
 	}
 	launch := hosts.LaunchFor(g.env)
 	if configPath != "" {
-		if err := hosts.WriteEntry(configPath, name, launch); err != nil {
+		if len(hostNames) != 1 || hostNames[0] == hostAll {
+			return exits.New("--config takes exactly one --host, whose config format it uses", exits.Usage)
+		}
+		if err := hosts.WriteEntry(hostNames[0], configPath, name, launch); err != nil {
 			return exits.New(err.Error(), exits.Failure)
 		}
 		render.Success(fmt.Sprintf("✓ Wrote MCP server entry '%s' into %s", name, configPath))
@@ -103,7 +106,7 @@ func installHosts(g *globals, hostNames []string, configPath, name string) error
 	var lines []hostResult
 	for _, h := range targets {
 		path := hosts.ResolveConfig(h)
-		if err := hosts.WriteEntry(path, name, launch); err != nil {
+		if err := hosts.WriteEntry(h, path, name, launch); err != nil {
 			lines = append(lines, hostResult{host: h, detail: err.Error()})
 			continue
 		}

@@ -8,7 +8,7 @@ The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persisten
 npx kemory connect
 ```
 
-This signs you in through the browser, writes the Kemory MCP server entry for the MCP clients installed on this machine (Claude Code, Claude Desktop, Cursor and others), and checks that the connection works. It is safe to re-run.
+This signs you in through the browser, writes the Kemory MCP server entry for the MCP clients installed on this machine (Claude Code, Codex, Cursor, VS Code and others), and checks that the connection works. It is safe to re-run.
 
 The npm package is a small launcher. On first run it downloads the native `kemory` binary for your platform (macOS, Linux or Windows), verifies its SHA-256 checksum and caches it.
 

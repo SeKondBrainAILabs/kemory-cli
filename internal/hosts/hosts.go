@@ -1,6 +1,6 @@
-// Package hosts knows where MCP hosts (Claude Code, Claude Desktop, Cursor,
-// Continue, Warp) keep their config, whether each is installed, and how to add
-// or remove the kemory server entry.
+// Package hosts knows where MCP hosts (Claude Code, Codex, VS Code, Cursor and
+// the rest of Names) keep their config, whether each is installed, and how to
+// add or remove the kemory server entry.
 //
 // Entries hold only the command that starts the bridge (`kemory --env <env>
 // mcp serve`). No token or key is ever written into a host's config.
@@ -13,22 +13,123 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
-
-	"github.com/SeKondBrainAILabs/kemory-cli/internal/jsonedit"
 )
 
+type host struct {
+	name string
+	// toml hosts keep each server as a [mcp_servers.<name>] table. The others
+	// keep a JSON object of servers under key.
+	toml bool
+	key  string
+	// typed hosts require "type": "stdio" in each entry.
+	typed bool
+	// paths returns the candidate config files, most likely first.
+	paths func() []string
+	// appDirs are directories the host app itself creates. Nil means the
+	// directories of the config files.
+	appDirs func() []string
+}
+
+// inHome returns the path under $HOME as a one-element list.
+func inHome(parts ...string) func() []string {
+	return func() []string { return []string{filepath.Join(append([]string{home()}, parts...)...)} }
+}
+
+// registry is in display order.
+var registry = []host{
+	{
+		name: "claude-code", key: "mcpServers",
+		paths: inHome(".claude.json"), appDirs: inHome(".claude"),
+	},
+	{
+		name: "claude-desktop", key: "mcpServers",
+		paths: func() []string {
+			return []string{
+				filepath.Join(home(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+				filepath.Join(appData(), "Claude", "claude_desktop_config.json"),
+				filepath.Join(home(), ".config", "Claude", "claude_desktop_config.json"),
+			}
+		},
+	},
+	{
+		name: "codex", toml: true,
+		paths: func() []string {
+			dir := os.Getenv("CODEX_HOME")
+			if dir == "" {
+				dir = filepath.Join(home(), ".codex")
+			}
+			return []string{filepath.Join(dir, "config.toml")}
+		},
+	},
+	{name: "cursor", key: "mcpServers", paths: inHome(".cursor", "mcp.json")},
+	{
+		name: "vscode", key: "servers", typed: true,
+		paths: func() []string { return []string{filepath.Join(vscodeUserDir(), "mcp.json")} },
+	},
+	{name: "gemini-cli", key: "mcpServers", paths: inHome(".gemini", "settings.json")},
+	{name: "antigravity", key: "mcpServers", paths: inHome(".gemini", "config", "mcp_config.json")},
+	{
+		// Windsurf is now Devin Desktop, which documents its own config dir.
+		// Installs from before the rename keep the old one.
+		name: "windsurf", key: "mcpServers",
+		paths: func() []string {
+			return []string{
+				filepath.Join(userConfigDir(), "devin", "mcp_config.json"),
+				filepath.Join(home(), ".codeium", "windsurf", "mcp_config.json"),
+			}
+		},
+	},
+	{
+		// The VS Code extension first, then the Cline CLI.
+		name: "cline", key: "mcpServers",
+		paths: func() []string {
+			return []string{
+				filepath.Join(clineExtensionDir(), "settings", "cline_mcp_settings.json"),
+				filepath.Join(home(), ".cline", "data", "settings", "cline_mcp_settings.json"),
+			}
+		},
+		appDirs: func() []string { return []string{clineExtensionDir(), filepath.Join(home(), ".cline")} },
+	},
+	{
+		name: "kiro", key: "mcpServers",
+		paths: inHome(".kiro", "settings", "mcp.json"), appDirs: inHome(".kiro"),
+	},
+	{name: "grok", toml: true, paths: inHome(".grok", "config.toml")},
+	{
+		// Continue reads Claude Desktop-style JSON files in ~/.continue/mcpServers
+		// whether the user's config is config.yaml or the older config.json, so
+		// kemory owns a file there instead of editing either.
+		name: "continue", key: "mcpServers",
+		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
+	},
+	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json")},
+}
+
 // Names lists the supported hosts in display order.
-var Names = []string{"claude-code", "claude-desktop", "cursor", "continue", "warp"}
+var Names = func() []string {
+	names := make([]string, len(registry))
+	for i, h := range registry {
+		names[i] = h.name
+	}
+	return names
+}()
+
+func lookup(name string) (host, bool) {
+	for _, h := range registry {
+		if h.name == name {
+			return h, true
+		}
+	}
+	return host{}, false
+}
 
 // IsKnown reports whether name is a supported host.
 func IsKnown(name string) bool {
-	for _, n := range Names {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	_, ok := lookup(name)
+	return ok
 }
 
 func home() string {
@@ -39,104 +140,150 @@ func home() string {
 	return h
 }
 
-// ConfigPaths returns the candidate config files for host, most likely first.
-// The first existing one is used; when none exists the first is created.
-func ConfigPaths(host string) []string {
-	h := home()
-	switch host {
-	case "claude-code":
-		return []string{filepath.Join(h, ".claude.json")}
-	case "claude-desktop":
-		appData := os.Getenv("APPDATA")
-		if appData == "" {
-			appData = filepath.Join(h, "AppData", "Roaming")
-		}
-		return []string{
-			filepath.Join(h, "Library", "Application Support", "Claude", "claude_desktop_config.json"),
-			filepath.Join(appData, "Claude", "claude_desktop_config.json"),
-			filepath.Join(h, ".config", "Claude", "claude_desktop_config.json"),
-		}
-	case "cursor":
-		return []string{filepath.Join(h, ".cursor", "mcp.json")}
-	case "continue":
-		return []string{filepath.Join(h, ".continue", "config.json")}
-	case "warp":
-		return []string{filepath.Join(h, ".warp", ".mcp.json")}
+func appData() string {
+	if dir := os.Getenv("APPDATA"); dir != "" {
+		return dir
 	}
-	return nil
+	return filepath.Join(home(), "AppData", "Roaming")
 }
 
-// appDirs are directories the host app itself creates. Claude Code's config
-// sits in $HOME, so its app dir is ~/.claude.
-func appDirs(host string) []string {
-	if host == "claude-code" {
-		return []string{filepath.Join(home(), ".claude")}
+// userConfigDir is where apps that follow the platform convention keep their
+// settings: %APPDATA% on Windows, $XDG_CONFIG_HOME or ~/.config elsewhere.
+func userConfigDir() string {
+	if runtime.GOOS == "windows" {
+		return appData()
+	}
+	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
+		return dir
+	}
+	return filepath.Join(home(), ".config")
+}
+
+// vscodeUserDir is VS Code's user profile directory.
+func vscodeUserDir() string {
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home(), "Library", "Application Support", "Code", "User")
+	}
+	return filepath.Join(userConfigDir(), "Code", "User")
+}
+
+// clineExtensionDir is the Cline VS Code extension's storage directory.
+func clineExtensionDir() string {
+	return filepath.Join(vscodeUserDir(), "globalStorage", "saoudrizwan.claude-dev")
+}
+
+// ConfigPaths returns the candidate config files for host, most likely first.
+func ConfigPaths(name string) []string {
+	h, ok := lookup(name)
+	if !ok {
+		return nil
+	}
+	return h.paths()
+}
+
+func (h host) dirs() []string {
+	if h.appDirs != nil {
+		return h.appDirs()
 	}
 	var dirs []string
-	for _, p := range ConfigPaths(host) {
+	for _, p := range h.paths() {
 		dirs = append(dirs, filepath.Dir(p))
 	}
 	return dirs
 }
 
-// Installed reports whether the host app has left files of its own here. The
-// config file alone does not count: `mcp install` may have created it.
-func Installed(host string) bool {
-	ours := map[string]bool{}
-	for _, p := range ConfigPaths(host) {
-		ours[filepath.Base(p)] = true
+// Installed reports whether the host app has left files of its own. Config
+// files kemory may have created do not count, nor do directories holding only
+// those: `mcp install` may have made them.
+func Installed(name string) bool {
+	h, ok := lookup(name)
+	if !ok {
+		return false
 	}
-	for _, dir := range appDirs(host) {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
+	ours := map[string]bool{}
+	for _, other := range registry {
+		for _, p := range other.paths() {
+			ours[filepath.Clean(p)] = true
 		}
-		for _, e := range entries {
-			if !ours[e.Name()] {
-				return true
-			}
+	}
+	for _, dir := range h.dirs() {
+		if hasAppFiles(filepath.Clean(dir), ours) {
+			return true
 		}
 	}
 	return false
 }
 
-// ResolveConfig returns the config file to use for host, or "" for an
-// unknown host.
-func ResolveConfig(host string) string {
-	paths := ConfigPaths(host)
+func hasAppFiles(dir string, ours map[string]bool) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		p := filepath.Join(dir, e.Name())
+		switch {
+		case ours[p]:
+		case e.IsDir() && holdsAny(p, ours):
+			if hasAppFiles(p, ours) {
+				return true
+			}
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+// holdsAny reports whether dir is an ancestor of one of paths.
+func holdsAny(dir string, paths map[string]bool) bool {
+	prefix := dir + string(filepath.Separator)
+	for p := range paths {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// ResolveConfig returns the config location to use for host: the first
+// candidate that exists, else the first whose directory exists, else the first.
+// It returns "" for an unknown host.
+func ResolveConfig(name string) string {
+	paths := ConfigPaths(name)
+	if len(paths) == 0 {
+		return ""
+	}
 	for _, p := range paths {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
 	}
-	if len(paths) == 0 {
-		return ""
+	for _, p := range paths {
+		if info, err := os.Stat(filepath.Dir(p)); err == nil && info.IsDir() {
+			return p
+		}
 	}
 	return paths[0]
 }
 
-// KemoryEntries returns the names of kemory servers in a config file, or nil
-// when it is missing or unreadable.
-func KemoryEntries(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
+// KemoryEntries returns the names of kemory servers in host's config at path,
+// or nil when it is missing or unreadable.
+func KemoryEntries(name, path string) []string {
+	h, ok := lookup(name)
+	if !ok {
 		return nil
 	}
-	cfg, err := jsonedit.Parse(data)
-	if err != nil {
-		return nil
+	names := jsonServerNames(path, h.key)
+	if h.toml {
+		names = tomlServerNames(path)
 	}
-	servers, err := cfg.Object("mcpServers")
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, k := range servers.Keys() {
-		if strings.Contains(k, "kemory") {
-			names = append(names, k)
+	var kemory []string
+	for _, n := range names {
+		if strings.Contains(n, "kemory") {
+			kemory = append(kemory, n)
 		}
 	}
-	return names
+	return kemory
 }
 
 // Launch is how a host should start the bridge.
@@ -176,94 +323,85 @@ func runningUnderUVX() bool {
 	return false
 }
 
-// ErrInvalidConfig means a host config exists but is not a JSON object; it is
-// never overwritten.
-var ErrInvalidConfig = errors.New("not valid JSON")
+// ErrInvalidConfig means a host config exists but cannot be parsed, or holds
+// the servers in a shape kemory cannot edit safely. Such a file is never
+// overwritten.
+var ErrInvalidConfig = errors.New("refusing to change it — fix it first")
 
-// WriteEntry adds or replaces the server entry name in the config at path,
+func invalid(path, problem string) error {
+	return fmt.Errorf("%s %s: %w", path, problem, ErrInvalidConfig)
+}
+
+// WriteEntry adds or replaces the server entry name in host's config at path,
 // leaving everything else in the file as it was.
-func WriteEntry(path, name string, launch Launch) error {
-	cfg := jsonedit.NewObject()
+func WriteEntry(name, path, server string, launch Launch) error {
+	h, ok := lookup(name)
+	if !ok {
+		return fmt.Errorf("unknown host %q", name)
+	}
+	if h.toml {
+		return writeTOMLEntry(path, server, launch)
+	}
+	return writeJSONEntry(path, h.key, h.typed, server, launch)
+}
+
+// RemoveEntries drops the named entries from host's config at path. A file
+// left with nothing else in it is deleted, with the directories that held only
+// it, so that only what kemory created disappears.
+func RemoveEntries(name, path string, servers []string) error {
+	h, ok := lookup(name)
+	if !ok {
+		return fmt.Errorf("unknown host %q", name)
+	}
+	var emptied string
+	var err error
+	if h.toml {
+		emptied, err = removeTOMLEntries(path, servers)
+	} else {
+		emptied, err = removeJSONEntries(path, h.key, servers)
+	}
+	if err != nil || emptied == "" {
+		return err
+	}
+	if err := os.Remove(emptied); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	removeEmptyDirs(filepath.Dir(emptied), h.dirs())
+	return nil
+}
+
+// removeEmptyDirs deletes dir and its empty parents, up to and including the
+// app dir that holds it. It never goes above an app dir or touches $HOME.
+func removeEmptyDirs(dir string, appDirs []string) {
+	for _, top := range appDirs {
+		top = filepath.Clean(top)
+		if dir != top && !strings.HasPrefix(dir, top+string(filepath.Separator)) {
+			continue
+		}
+		for d := dir; d != home(); d = filepath.Dir(d) {
+			if os.Remove(d) != nil { // fails, harmlessly, when other files remain
+				return
+			}
+			if d == top {
+				return
+			}
+		}
+		return
+	}
+}
+
+// writeFile replaces path atomically, since the host app may read it at any
+// time. It keeps an existing file's mode.
+func writeFile(path string, body []byte) error {
 	mode := fs.FileMode(0o644)
-	data, err := os.ReadFile(path)
-	switch {
+	switch info, err := os.Stat(path); {
 	case err == nil:
-		if cfg, err = jsonedit.Parse(data); err != nil {
-			return fmt.Errorf("%s is %w. Refusing to overwrite — fix it first", path, ErrInvalidConfig)
-		}
-		if info, statErr := os.Stat(path); statErr == nil {
-			mode = info.Mode().Perm()
-		}
+		mode = info.Mode().Perm()
 	case errors.Is(err, fs.ErrNotExist):
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // the host app's own config dir, normally readable
 			return err
 		}
 	default:
-		return err
-	}
-	servers, err := cfg.Object("mcpServers")
-	if err != nil {
-		return fmt.Errorf("%s: %w. Refusing to overwrite — fix it first", path, ErrInvalidConfig)
-	}
-	// A struct, not a map, so the entry reads command, args, env.
-	entry := struct {
-		Command string            `json:"command"`
-		Args    []string          `json:"args"`
-		Env     map[string]string `json:"env"`
-	}{launch.Command, launch.Args, map[string]string{}}
-	if err := servers.SetValue(name, entry); err != nil {
-		return err
-	}
-	if err := cfg.SetObject("mcpServers", servers); err != nil {
-		return err
-	}
-	return writeConfig(path, cfg, mode)
-}
-
-// RemoveEntries drops the named entries. It deletes the file (and the app dir
-// when empty) only if nothing else was in it, i.e. only what kemory created.
-func RemoveEntries(host, path string, names []string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	cfg, err := jsonedit.Parse(data)
-	if err != nil {
-		return fmt.Errorf("%s is %w", path, ErrInvalidConfig)
-	}
-	servers, err := cfg.Object("mcpServers")
-	if err != nil {
-		return err
-	}
-	for _, n := range names {
-		servers.Delete(n)
-	}
-	if servers.Len() == 0 && (cfg.Len() == 0 || (cfg.Len() == 1 && cfg.Keys()[0] == "mcpServers")) {
-		if err := os.Remove(path); err != nil {
-			return err
-		}
-		dir := filepath.Dir(path)
-		for _, d := range appDirs(host) {
-			if d == dir && dir != home() {
-				_ = os.Remove(dir) // fails, harmlessly, when other files remain
-			}
-		}
-		return nil
-	}
-	if err := cfg.SetObject("mcpServers", servers); err != nil {
-		return err
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	return writeConfig(path, cfg, info.Mode().Perm())
-}
-
-// writeConfig replaces path atomically: the host app may read it at any time.
-func writeConfig(path string, cfg *jsonedit.Object, mode fs.FileMode) error {
-	body, err := cfg.Marshal("")
-	if err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
@@ -272,7 +410,7 @@ func writeConfig(path string, cfg *jsonedit.Object, mode fs.FileMode) error {
 	}
 	name := tmp.Name()
 	defer func() { _ = os.Remove(name) }()
-	if _, err := tmp.Write(append(body, '\n')); err != nil {
+	if _, err := tmp.Write(body); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -306,4 +444,9 @@ func ClaudeCodePluginSettings() string {
 		}
 	}
 	return ""
+}
+
+func sorted(keys []string) []string {
+	slices.Sort(keys)
+	return keys
 }
