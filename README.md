@@ -7,8 +7,26 @@ The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persisten
 memory vault for AI agents. It signs you in, connects MCP clients such as Claude
 Code, Codex, Cursor and VS Code to your vault, and runs the MCP bridge they use.
 
-> **Not released yet.** The first release from this repository will be 0.7.0.
-> Until then, `brew`, `npx kemory` and `uvx kemory` install the previous CLI (0.6.x).
+## Install
+
+Connect your MCP clients in one command, without installing anything:
+
+```bash
+npx kemory connect --host all   # Node.js 18+
+uvx kemory connect --host all   # uv
+```
+
+Or install the CLI:
+
+```bash
+brew install sekondbrainailabs/s9n/kemory
+npm install -g kemory
+uv tool install kemory
+```
+
+Binaries for macOS, Linux and Windows are also attached to each
+[GitHub release](https://github.com/SeKondBrainAILabs/kemory-cli/releases),
+with checksums and build provenance (`gh attestation verify <file> --repo SeKondBrainAILabs/kemory-cli`).
 
 ## Commands
 
