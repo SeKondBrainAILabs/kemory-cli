@@ -3,11 +3,13 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/api"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
@@ -42,7 +44,10 @@ func newMCPInstallCmd(g *globals) *cobra.Command {
 			if err := validateHosts(hostNames); err != nil {
 				return err
 			}
-			return installHosts(g, hostNames, configPath, name)
+			// Without a sign-in the claude.ai connector cannot be looked up,
+			// which only means it is not counted.
+			creds, _ := auth.ValidCredentials(g.env, false)
+			return installHosts(g, creds, hostNames, configPath, name)
 		},
 	}
 	cmd.Flags().StringSliceVar(&hostNames, "host", []string{"claude-code"}, "MCP host(s) to configure: "+hostChoices()+".")
@@ -56,7 +61,7 @@ type hostResult struct {
 	ok           bool
 }
 
-func installHosts(g *globals, hostNames []string, configPath, name string) error {
+func installHosts(g *globals, creds *config.Credentials, hostNames []string, configPath, name string) error {
 	if name == "" {
 		name = g.profile.ServerName
 	}
@@ -102,9 +107,15 @@ func installHosts(g *globals, hostNames []string, configPath, name string) error
 		}
 	}
 
+	covered := coveredElsewhere(g.env, creds, time.Now())
 	written := map[string]bool{}
 	var lines []hostResult
 	for _, h := range targets {
+		// A second entry would give the host every Kemory tool twice.
+		if reason := covered[h]; reason != "" {
+			lines = append(lines, hostResult{host: h, detail: "already " + reason + " — nothing written", ok: true})
+			continue
+		}
 		if hosts.RunningCheck(h) {
 			lines = append(lines, hostResult{host: h, detail: closeFirst(h)})
 			continue
@@ -201,7 +212,7 @@ func connect(g *globals, hostNames []string, noBrowser, local bool) error {
 		render.Success(fmt.Sprintf("✓ Already logged in to '%s'", g.env))
 	}
 
-	if err := installHosts(g, hostNames, "", ""); err != nil {
+	if err := installHosts(g, creds, hostNames, "", ""); err != nil {
 		return err
 	}
 

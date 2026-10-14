@@ -93,9 +93,25 @@ On Windows the files under `Library/Application Support` and `.config` live in
 `%APPDATA%` instead. Grok also reads `~/.claude.json`, so the `claude-code`
 entry reaches it too.
 
+### One connection per client
+
+Each client should reach Kemory one way. Two ways give it every Kemory tool
+twice, which costs context in every session.
+
+| Client | Connect it with |
+|---|---|
+| claude.ai, Claude Desktop and Claude mobile | The claude.ai connector, added from the Kemory dashboard |
+| Claude Code | The Kemory plugin, which also brings the hooks that inject your context |
+| Everything else in the table above | `kemory connect --host <name>` |
+
+`connect` and `mcp install` write nothing for a client that already has
+Kemory: Claude Code with the Kemory plugin enabled, or Claude Desktop when your
+account has a claude.ai connector in use. `kemory doctor` reports a kemory entry
+that duplicates either one, and `kemory doctor --fix` removes it.
+
 Claude Desktop rewrites its config file from memory while it runs, which drops
-an entry added in the meantime. Quit it completely (⌘Q on macOS) before
-connecting it; kemory leaves its config alone while it is open and says so.
+an entry added or removed in the meantime. Quit it completely (⌘Q on macOS)
+first; kemory leaves its config alone while it is open and says so.
 
 ## Exit codes
 

@@ -90,7 +90,7 @@ func (d *doctor) run() error {
 	d.checkReachable(kemoryURL)
 	fresh := d.checkRefresh(creds)
 	d.checkRoundTrip(fresh, kemoryURL)
-	fixHint := d.checkHosts()
+	fixHint := d.checkHosts(fresh)
 	d.checkFreshness()
 
 	if render.JSONMode() {
@@ -286,22 +286,26 @@ func meSummary(body []byte) string {
 
 // checkHosts reports each MCP host and returns whether `doctor --fix` would
 // change something. An entry only counts where the host app is installed.
-func (d *doctor) checkHosts() bool {
+func (d *doctor) checkHosts(creds *config.Credentials) bool {
 	wired, fixable := 0, false
 	launch := hosts.LaunchFor(d.g.env)
+	covered := coveredElsewhere(d.g.env, creds, time.Now())
 	for _, host := range hosts.Names {
 		installed := hosts.Installed(host)
 		path := hosts.ResolveConfig(host)
 		entries := hosts.KemoryEntries(host, path)
 		label := "mcp host: " + host
-		plugin := ""
-		if host == "claude-code" && len(entries) == 0 {
-			plugin = hosts.ClaudeCodePluginSettings()
-		}
+		reason := covered[host]
+		dupes := named(entries, d.g.profile.ServerName)
 		switch {
-		case plugin != "":
+		case reason != "" && len(dupes) > 0:
 			wired++
-			d.emit(label, render.Pass, "kemory plugin enabled in "+plugin)
+			if d.removeDuplicate(label, host, path, reason, dupes) {
+				fixable = true
+			}
+		case reason != "" && installed:
+			wired++
+			d.emit(label, render.Pass, reason)
 		case len(entries) > 0 && installed:
 			wired++
 			d.emit(label, render.Pass, path)
@@ -337,6 +341,27 @@ func (d *doctor) checkHosts() bool {
 		d.emit("mcp host config", render.Fail, "no installed MCP host has a kemory entry")
 	}
 	return !d.fix && (wired == 0 || fixable)
+}
+
+// removeDuplicate handles a host that reaches Kemory another way and also has
+// a kemory entry, which gives it every tool twice. It reports whether
+// `doctor --fix` would remove the entry.
+func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []string) bool {
+	dup := fmt.Sprintf("duplicate: already %s, and %s also has a kemory entry", reason, path)
+	switch {
+	case hosts.RunningCheck(host):
+		d.emit(label, render.Skip, dup+". Quit the app completely (⌘Q on macOS), then run `kemory doctor --fix` to remove the entry.")
+		return false
+	case !d.fix:
+		d.emit(label, render.Skip, dup+". `kemory doctor --fix` removes the entry.")
+		return true
+	}
+	if err := hosts.RemoveEntries(host, path, dupes); err != nil {
+		d.emit(label, render.Fail, err.Error())
+		return false
+	}
+	d.emit(label, render.Pass, fmt.Sprintf("removed the duplicate entry from %s; %s — restart %s", path, reason, host))
+	return false
 }
 
 // checkFreshness compares this build with the newest release. A failed lookup
