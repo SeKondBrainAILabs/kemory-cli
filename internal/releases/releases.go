@@ -74,9 +74,12 @@ func Latest(ctx context.Context) (string, error) {
 	return best, nil
 }
 
-// parse returns the numeric parts of "X.Y.Z", or nil for anything else
-// (a "dev" or snapshot build).
+// parse returns the numeric parts of "X.Y.Z", ignoring a "-pre" or "+build"
+// suffix (so 0.7.0-dev compares as 0.7.0), or nil for anything else, such as
+// a plain "dev" build.
 func parse(v string) []int {
+	v, _, _ = strings.Cut(v, "+")
+	v, _, _ = strings.Cut(v, "-")
 	parts := strings.Split(v, ".")
 	out := make([]int, 0, len(parts))
 	for _, p := range parts {
@@ -109,7 +112,7 @@ func compare(a, b []int) int {
 }
 
 // IsNewer reports whether latest is newer than current, and false for ok when
-// either is not a plain X.Y.Z version.
+// either has no X.Y.Z version at all.
 func IsNewer(latest, current string) (newer, ok bool) {
 	l, c := parse(latest), parse(current)
 	if l == nil || c == nil {

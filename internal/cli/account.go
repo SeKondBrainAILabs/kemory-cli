@@ -422,6 +422,8 @@ func newUpgradeCmd() *cobra.Command {
 			channel := detectChannel()
 			render.Echo("")
 			switch {
+			case check && !ok:
+				render.Echo(fmt.Sprintf("Could not tell whether %s is newer than this build. Run `kemory upgrade` to see how to install it.", latest))
 			case check:
 				render.Echo("A newer version is available. Run `kemory upgrade` to see how to install it.")
 			case channel.command == "":
@@ -433,5 +435,11 @@ func newUpgradeCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "Only say whether a newer version is available.")
+	// Accepted for scripts written against the Python CLI, whose upgrade
+	// installed after a confirmation. This one installs nothing, so there is
+	// nothing to confirm.
+	var yes bool
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Accepted for compatibility; upgrade never installs anything.")
+	_ = cmd.Flags().MarkHidden("yes")
 	return cmd
 }

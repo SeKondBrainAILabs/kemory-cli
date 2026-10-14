@@ -170,3 +170,22 @@ func TestCompletionScripts(t *testing.T) {
 		}
 	}
 }
+
+func TestUpgradeAcceptsThePythonCLIsYesFlag(t *testing.T) {
+	setHome(t)
+	fakeReleases(t, `[{"tag_name": "cli-v9.9.9", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`)
+	for _, flag := range []string{"--yes", "-y"} {
+		if code, _, errOut := run(t, "upgrade", flag); code != 0 {
+			t.Fatalf("%s: got %d %q", flag, code, errOut)
+		}
+	}
+}
+
+func TestUpgradeCheckDoesNotClaimANewerVersionItCannotCompare(t *testing.T) {
+	setHome(t) // version.Version is "dev" in tests
+	fakeReleases(t, `[{"tag_name": "cli-v0.6.14", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`)
+	_, out, _ := run(t, "upgrade", "--check")
+	if strings.Contains(out, "A newer version is available") || !strings.Contains(out, "Could not tell") {
+		t.Fatalf("got:\n%s", out)
+	}
+}

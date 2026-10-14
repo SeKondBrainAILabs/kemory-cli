@@ -49,7 +49,9 @@ func TestIsNewer(t *testing.T) {
 		{"0.6.9", "0.6.14", false, true},
 		{"1.0", "1.0.0", false, true},
 		{"0.7.0", "dev", false, false},
-		{"0.7.0", "0.0.0-SNAPSHOT-abc", false, false},
+		{"0.6.14", "0.7.0-dev", false, true},
+		{"0.7.0", "0.7.0+abc123", false, true},
+		{"0.7.0", "0.0.0-SNAPSHOT-abc", true, true},
 	}
 	for _, c := range cases {
 		if newer, ok := IsNewer(c.latest, c.current); newer != c.newer || ok != c.ok {
