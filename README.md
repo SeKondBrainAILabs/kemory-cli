@@ -7,10 +7,8 @@ The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persisten
 memory vault for AI agents. It signs you in, connects MCP clients such as Claude
 Code, Claude Desktop and Cursor to your vault, and runs the MCP bridge they use.
 
-> **Status:** this Go implementation covers every command of the released CLI
-> and is not released yet. The released CLI is installed with
-> `brew install sekondbrainailabs/s9n/kemory`, `npx kemory` or `uvx kemory`,
-> and will switch to this build once it covers every command.
+> **Not released yet.** The first release from this repository will be 0.7.0.
+> Until then, `brew`, `npx kemory` and `uvx kemory` install the previous CLI (0.6.x).
 
 ## Commands
 
