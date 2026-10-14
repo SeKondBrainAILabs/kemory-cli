@@ -129,7 +129,7 @@ func (d *doctor) checkCredentials(creds *config.Credentials) {
 	if creds.AccessToken == "" {
 		status = render.Fail
 	}
-	d.emit("credentials cached", status, fmt.Sprintf("%s, expires_at=%d", path, int64(creds.ExpiresAt)))
+	d.emit("credentials cached", status, fmt.Sprintf("%s, access token %s", path, expiry(creds.ExpiresAt, time.Now())))
 }
 
 func (d *doctor) checkReachable(kemoryURL string) {
@@ -173,8 +173,44 @@ func (d *doctor) checkRefresh(creds *config.Credentials) *config.Credentials {
 		d.emit("token refresh", render.Fail, "refresh failed — the session expired or was revoked. Run `kemory login`.")
 		return nil
 	}
-	d.emit("token refresh", render.Pass, fmt.Sprintf("new access_token expires_at=%d", int64(fresh.ExpiresAt)))
+	d.emit("token refresh", render.Pass, "new access token "+expiry(fresh.ExpiresAt, time.Now()))
 	return fresh
+}
+
+// expiry says when an epoch-seconds expiry falls, in local time and relative
+// to now: "expires 19:24 (in 59m)", with the date when it is not today.
+func expiry(epoch float64, now time.Time) string {
+	at := time.Unix(int64(epoch), 0).In(now.Location())
+	when := at.Format("15:04")
+	if y, m, d := at.Date(); y != now.Year() || m != now.Month() || d != now.Day() {
+		when = at.Format("2006-01-02 15:04")
+	}
+	left := at.Sub(now)
+	if left < 0 {
+		return fmt.Sprintf("expired %s (%s ago)", when, roughDuration(-left))
+	}
+	return fmt.Sprintf("expires %s (in %s)", when, roughDuration(left))
+}
+
+// roughDuration renders d to the minute: "45s" below a minute, then "59m",
+// "1h", "1h5m" or "3d2h".
+func roughDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	d = d.Round(time.Minute)
+	days, hours, mins := int(d/(24*time.Hour)), int(d/time.Hour)%24, int(d/time.Minute)%60
+	switch {
+	case days > 0 && hours > 0:
+		return fmt.Sprintf("%dd%dh", days, hours)
+	case days > 0:
+		return fmt.Sprintf("%dd", days)
+	case hours > 0 && mins > 0:
+		return fmt.Sprintf("%dh%dm", hours, mins)
+	case hours > 0:
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dm", mins)
 }
 
 // checkRoundTrip asks /api/v1/me the same question every command asks,

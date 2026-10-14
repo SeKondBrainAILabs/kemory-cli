@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
@@ -320,5 +321,20 @@ func TestDoctorTextOutput(t *testing.T) {
 	code, out, _ := run(t, "doctor")
 	if code != 0 || !strings.Contains(out, "FAIL  credentials cached") || !strings.Contains(out, "kemory doctor --fix") {
 		t.Fatalf("got %d\n%s", code, out)
+	}
+}
+
+func TestDoctorShowsExpiryAsATime(t *testing.T) {
+	now := time.Date(2026, 10, 14, 18, 25, 0, 0, time.UTC)
+	for epoch, want := range map[float64]string{
+		float64(now.Add(59 * time.Minute).Unix()): "expires 19:24 (in 59m)",
+		float64(now.Add(65 * time.Minute).Unix()): "expires 19:30 (in 1h5m)",
+		float64(now.Add(30 * time.Second).Unix()): "expires 18:25 (in 30s)",
+		float64(now.Add(-3 * time.Minute).Unix()): "expired 18:22 (3m ago)",
+		float64(now.Add(50 * time.Hour).Unix()):   "expires 2026-10-16 20:25 (in 2d2h)",
+	} {
+		if got := expiry(epoch, now); got != want {
+			t.Errorf("expiry: got %q, want %q", got, want)
+		}
 	}
 }
