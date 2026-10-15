@@ -116,17 +116,17 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 			lines = append(lines, hostResult{host: h, detail: "already " + reason + " — nothing written", ok: true})
 			continue
 		}
-		if hosts.RunningCheck(h) {
-			lines = append(lines, hostResult{host: h, detail: closeFirst(h)})
-			continue
-		}
 		path := hosts.ResolveConfig(h)
-		if err := hosts.WriteEntry(h, path, name, launch); err != nil {
+		done, note, err := withAppClosed(h, false, func() error { return hosts.WriteEntry(h, path, name, launch) })
+		switch {
+		case err != nil:
 			lines = append(lines, hostResult{host: h, detail: err.Error()})
-			continue
+		case !done:
+			lines = append(lines, hostResult{host: h, detail: note})
+		default:
+			written[h] = true
+			lines = append(lines, hostResult{host: h, detail: joinNote(path, note), ok: true})
 		}
-		written[h] = true
-		lines = append(lines, hostResult{host: h, detail: path, ok: true})
 	}
 	lines = append(lines, results...)
 	for _, r := range lines {
@@ -149,11 +149,12 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 	return nil
 }
 
-// closeFirst explains why an app that rewrites its config while it runs was
-// left alone, and what to do instead.
-func closeFirst(host string) string {
-	return fmt.Sprintf("the app is open and rewrites its config from memory, which would drop the entry. "+
-		"Quit it completely (⌘Q on macOS), then run `kemory mcp install --host %s`.", host)
+// joinNote appends note to detail when there is one.
+func joinNote(detail, note string) string {
+	if note == "" {
+		return detail
+	}
+	return detail + " — " + note
 }
 
 func contains(list []string, s string) bool {

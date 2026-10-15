@@ -110,8 +110,11 @@ account has a claude.ai connector in use. `kemory doctor` reports a kemory entry
 that duplicates either one, and `kemory doctor --fix` removes it.
 
 Claude Desktop rewrites its config file from memory while it runs, which drops
-an entry added or removed in the meantime. Quit it completely (⌘Q on macOS)
-first; kemory leaves its config alone while it is open and says so.
+an entry added or removed in the meantime. When its config has to change while
+it is open, `connect`, `mcp install` and `doctor --fix` offer to quit it, make
+the change and open it again (`doctor --fix --yes` does so without asking).
+Run them from Terminal or iTerm rather than the terminal inside the Claude app,
+which would close with it; kemory notices and says so.
 
 ## Exit codes
 

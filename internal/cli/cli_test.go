@@ -29,9 +29,14 @@ func setHome(t *testing.T) string {
 	}
 	// Whether Claude Desktop is open on the machine running the tests must not
 	// change what they see.
-	running := hosts.RunningCheck
+	running, inside, quit, open := hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp
 	hosts.RunningCheck = func(string) bool { return false }
-	t.Cleanup(func() { hosts.RunningCheck = running })
+	hosts.InsideApp = func(string) bool { return false }
+	hosts.QuitApp = func(string, time.Duration) error { t.Fatal("a test tried to quit a real app"); return nil }
+	hosts.OpenApp = func(string) error { t.Fatal("a test tried to open a real app"); return nil }
+	t.Cleanup(func() {
+		hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp = running, inside, quit, open
+	})
 	// MCP host configs on Windows live under %APPDATA%.
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	// Tests never reach a real Kemory: anything not pointed at a fake server
