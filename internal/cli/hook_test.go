@@ -53,11 +53,12 @@ func TestHookSessionStartIsSilentWhenItCannotHelp(t *testing.T) {
 	}
 }
 
-// hookEvent is a hook payload, marshalled so Windows paths stay valid JSON.
-func hookEvent(t *testing.T, sessionID, event, transcript string) string {
+// hookEvent is a hook payload for session s1, marshalled so Windows paths
+// stay valid JSON.
+func hookEvent(t *testing.T, event, transcript string) string {
 	t.Helper()
 	data, err := json.Marshal(map[string]string{
-		"session_id": sessionID, "hook_event_name": event, "transcript_path": transcript, "cwd": "/w",
+		"session_id": "s1", "hook_event_name": event, "transcript_path": transcript, "cwd": "/w",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +81,7 @@ func captureSetup(t *testing.T, status int) (*fakeVault, string, string) {
 
 func TestHookCaptureStoresRedactedTurnsOnce(t *testing.T) {
 	v, home, transcript := captureSetup(t, 201)
-	withStdin(t, hookEvent(t, "s1", "Stop", transcript))
+	withStdin(t, hookEvent(t, "Stop", transcript))
 	if code, out, errOut := run(t, "hook", "capture", "--agent", "codex"); code != 0 || out != "" || errOut != "" {
 		t.Fatalf("capture must print nothing: %d %q %q", code, out, errOut)
 	}
@@ -97,7 +98,7 @@ func TestHookCaptureStoresRedactedTurnsOnce(t *testing.T) {
 	}
 
 	delete(v.bodies, "/api/v1/memories")
-	withStdin(t, hookEvent(t, "s1", "SessionEnd", transcript))
+	withStdin(t, hookEvent(t, "SessionEnd", transcript))
 	run(t, "hook", "capture", "--agent", "codex")
 	if _, posted := v.bodies["/api/v1/memories"]; posted {
 		t.Fatal("the same session was stored twice")
@@ -115,7 +116,7 @@ func TestHookCaptureFlagsFillAMissingPayload(t *testing.T) {
 
 func TestAFailedCaptureIsTriedAgain(t *testing.T) {
 	v, home, transcript := captureSetup(t, 503)
-	withStdin(t, hookEvent(t, "s1", "SessionEnd", transcript))
+	withStdin(t, hookEvent(t, "SessionEnd", transcript))
 	if code, _, _ := run(t, "hook", "capture"); code != 0 {
 		t.Fatalf("a failed store must not fail the agent: %d", code)
 	}
@@ -130,7 +131,7 @@ func TestAFailedCaptureIsTriedAgain(t *testing.T) {
 func TestHookCaptureCanBeTurnedOff(t *testing.T) {
 	v, _, transcript := captureSetup(t, 201)
 	t.Setenv("KEMORY_AUTO_CAPTURE", "0")
-	withStdin(t, hookEvent(t, "s1", "SessionEnd", transcript))
+	withStdin(t, hookEvent(t, "SessionEnd", transcript))
 	run(t, "hook", "capture")
 	if _, posted := v.bodies["/api/v1/memories"]; posted {
 		t.Fatal("KEMORY_AUTO_CAPTURE=0 must turn capture off")
