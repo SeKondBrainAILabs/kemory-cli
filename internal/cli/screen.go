@@ -148,20 +148,25 @@ const (
 
 const pickQuestion = "Which AI clients should Kemory connect?"
 
-// pickFancy lists every client found here with its Kemory state and logo,
-// then asks one question: connect every ready client, choose some, or stop.
+// pickFancy lists every supported client with its Kemory state, connected
+// first, then the ones it can connect, then the ones not installed here, and
+// asks one question: connect every ready client, choose some, or stop.
 func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	var ready []pickRow
 	render.Echo(ui.Rail(""))
-	render.Echo(ui.Rail(ui.Bold("AI clients on this machine")))
 	for _, r := range rows {
-		render.Echo(ui.Rail(ui.Detected(r.host, r.state == "ready", r.short)))
+		if r.state != "ready" {
+			render.Echo(ui.Rail(ui.Detected(r.host, ui.Connected, r.short)))
+		}
+	}
+	for _, r := range rows {
 		if r.state == "ready" {
+			render.Echo(ui.Rail(ui.Detected(r.host, ui.Ready, r.short)))
 			ready = append(ready, r)
 		}
 	}
-	if n := len(missing); n > 0 {
-		render.Echo(ui.Rail(ui.Dim(fmt.Sprintf("%d more supported client%s not installed here", n, map[bool]string{true: " is", false: "s are"}[n == 1]))))
+	for _, h := range missing {
+		render.Echo(ui.Rail(ui.Detected(h, ui.Missing, "not installed")))
 	}
 	render.Echo(ui.Rail(""))
 	if len(ready) == 0 {

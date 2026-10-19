@@ -438,9 +438,9 @@ func newUpgradeCmd() *cobra.Command {
 			render.Echo("")
 			switch {
 			case check && !ok:
-				render.Echo(fmt.Sprintf("Could not tell whether %s is newer than this build. Run `kemory upgrade` to see how to install it.", latest))
+				render.Echo(fmt.Sprintf("Could not tell whether %s is newer than this build. Run `kemory upgrade` to install it.", latest))
 			case check:
-				render.Echo("A newer version is available. Run `kemory upgrade` to see how to install it.")
+				render.Echo("A newer version is available. Run `kemory upgrade` to install it.")
 			case channel.command == "":
 				render.Echo(fmt.Sprintf("Download %s for %s/%s from %s/tag/cli-v%s", latest, runtime.GOOS, runtime.GOARCH, releasesPage, latest))
 			case channel.argv != nil && (yes || stdinIsTerminal()):
