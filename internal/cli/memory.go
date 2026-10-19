@@ -309,7 +309,12 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 	if minRelevance != nil {
 		body["min_relevance"] = *minRelevance
 	}
-	resp, err := api.Post(creds, "/api/v1/memories/search", body, searchTimeout)
+	title := "Searching your memories…"
+	if query == "" {
+		title = "Loading your memories…"
+	}
+	var resp *api.Response
+	loading(title, func() { resp, err = api.Post(creds, "/api/v1/memories/search", body, searchTimeout) })
 	if err != nil {
 		return err
 	}
@@ -732,7 +737,8 @@ func newAskCmd(g *globals) *cobra.Command {
 			if noSynth {
 				body["synthesize"] = false
 			}
-			resp, err := api.Post(creds, "/api/v1/ask", body, askTimeout)
+			var resp *api.Response
+			loading("Asking your vault…", func() { resp, err = api.Post(creds, "/api/v1/ask", body, askTimeout) })
 			if err != nil {
 				return err
 			}
