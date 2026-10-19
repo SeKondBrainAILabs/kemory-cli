@@ -341,10 +341,6 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 			d.emit(label, render.Pass, "removed kemory entry — "+host+" is not installed")
 		case installed:
 			if !d.fix {
-				if d.stuckInside(host) {
-					d.emit(label, render.Skip, "installed, not connected — "+insideAppNote)
-					continue
-				}
 				fixable = true
 				d.emit(label, render.Skip, "installed, not connected")
 				continue
@@ -358,7 +354,7 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 			if pluginErr != nil {
 				d.emit(label+" plugin", render.Skip, pluginFallback(pluginErr))
 			}
-			done, note, err := withAppClosed(host, d.yes, func() error {
+			done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
 				return hosts.WriteEntry(host, path, d.g.profile.ServerName, launch)
 			})
 			switch {
@@ -390,14 +386,12 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []string) bool {
 	dup := fmt.Sprintf("duplicate: already %s, and %s also has a kemory entry", reason, path)
 	if !d.fix {
-		if d.stuckInside(host) {
-			d.emit(label, render.Skip, dup+". "+insideAppNote)
-			return false
-		}
 		d.emit(label, render.Skip, dup+". `kemory doctor --fix` removes it.")
 		return true
 	}
-	done, note, err := withAppClosed(host, d.yes, func() error { return hosts.RemoveEntries(host, path, dupes) })
+	done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
+		return hosts.RemoveEntries(host, path, dupes)
+	})
 	switch {
 	case err != nil:
 		d.emit(label, render.Fail, err.Error())
@@ -407,12 +401,6 @@ func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []strin
 		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate entry from %s; %s", path, reason), orDefault(note, "restart "+host)))
 	}
 	return false
-}
-
-// stuckInside reports whether host's app is open and this process runs inside
-// it, so --fix could not quit it.
-func (d *doctor) stuckInside(host string) bool {
-	return hosts.RunningCheck(host) && hosts.InsideApp(host)
 }
 
 // checkFreshness compares this build with the newest release. A failed lookup

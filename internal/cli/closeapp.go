@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
 )
@@ -20,21 +21,44 @@ func closeFirst(host string) string {
 		"Quit it completely (⌘Q on macOS), then run `kemory mcp install --host %s`.", host)
 }
 
-// insideAppNote is shown instead of offering to quit an app this process runs
-// in: quitting it would stop kemory halfway.
+// insideAppNote is shown instead of quitting an app this process runs in:
+// quitting it would stop kemory halfway.
 const insideAppNote = "This terminal runs inside Claude Desktop, so quitting the app would stop kemory too. " +
 	"Run the command from Terminal or iTerm instead."
+
+// resumeArgs are the kemory arguments that redo a change, for handOff.
+func resumeArgs(env string, args ...string) []string {
+	if env != config.DefaultEnv {
+		args = append([]string{"--env", env}, args...)
+	}
+	return args
+}
+
+// handOff offers to run resume in Terminal, where quitting the app does not
+// stop kemory, and returns the note to show.
+func handOff(yes bool, resume []string) string {
+	line := hosts.CommandLine(resume...)
+	if !yes && (!stdinIsTerminal() || !confirm("This terminal runs inside Claude Desktop, which has to quit for this change. "+
+		"Open Terminal and run `"+line+"` there?")) {
+		return insideAppNote
+	}
+	if err := hosts.HandOff(line); err != nil {
+		return "could not open Terminal (" + err.Error() + "). " + insideAppNote
+	}
+	return "continued in Terminal, which runs `" + line + "`; finish there"
+}
 
 // withAppClosed applies change to host's config while its app is closed. An
 // app that rewrites its config while it runs is quit first, with the user's
 // consent (or yes), and started again afterwards. It returns a note for the
-// user, and whether change ran.
-func withAppClosed(host string, yes bool, change func() error) (bool, string, error) {
+// user, and whether change ran. When kemory runs inside the app, it offers
+// to run resume in Terminal instead.
+func withAppClosed(host string, yes bool, resume []string, change func() error) (bool, string, error) {
 	if !hosts.RunningCheck(host) {
 		return true, "", change()
 	}
 	if hosts.InsideApp(host) {
-		return false, insideAppNote, nil
+		return false, handOff(yes, resume), nil
 	}
 	if !yes {
 		if !stdinIsTerminal() {

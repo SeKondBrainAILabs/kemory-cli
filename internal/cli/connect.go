@@ -192,7 +192,8 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		}
 	}
 	path := hosts.ResolveConfig(h)
-	done, note, err := withAppClosed(h, false, func() error { return hosts.WriteEntry(h, path, name, launch) })
+	resume := resumeArgs(g.env, "mcp", "install", "--host", h)
+	done, note, err := withAppClosed(h, false, resume, func() error { return hosts.WriteEntry(h, path, name, launch) })
 	switch {
 	case err != nil:
 		return hostResult{host: h, detail: err.Error(), short: err.Error()}

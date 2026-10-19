@@ -137,8 +137,8 @@ Claude Desktop rewrites its config file from memory while it runs, which drops
 an entry added or removed in the meantime. When its config has to change while
 it is open, `connect`, `mcp install` and `doctor --fix` offer to quit it, make
 the change and open it again (`doctor --fix --yes` does so without asking).
-Run them from Terminal or iTerm rather than the terminal inside the Claude app,
-which would close with it; kemory notices and says so.
+Run from the terminal inside the Claude app, which would close with it, they
+offer to open Terminal and continue there instead (macOS).
 
 ## Exit codes
 

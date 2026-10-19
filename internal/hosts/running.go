@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -36,6 +37,9 @@ var (
 	QuitApp = quitApp
 	// OpenApp starts the host app again.
 	OpenApp = openApp
+	// HandOff opens Terminal running a command line, outside any app kemory
+	// may run inside.
+	HandOff = handOff
 )
 
 // ErrNoAppControl means kemory cannot quit or start the app on this OS.
@@ -122,6 +126,41 @@ func quitApp(name string, timeout time.Duration) error {
 		}
 	}
 	return errors.New("it is still running; it may be waiting for you to confirm quitting")
+}
+
+// CommandLine is the shell line that runs this kemory with args: plain
+// "kemory" when that is the one on PATH, else its full path.
+func CommandLine(args ...string) string {
+	exe := "kemory"
+	self, err := os.Executable()
+	if err == nil {
+		onPath, lookErr := exec.LookPath("kemory")
+		if lookErr != nil || !samePath(onPath, self) {
+			exe = self
+		}
+	}
+	parts := []string{shellQuote(exe)}
+	for _, a := range args {
+		parts = append(parts, shellQuote(a))
+	}
+	return strings.Join(parts, " ")
+}
+
+func samePath(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && ra == rb
+}
+
+func handOff(line string) error {
+	if runtime.GOOS != "darwin" {
+		return ErrNoAppControl
+	}
+	quoted := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(line)
+	_, err := command(10*time.Second, "osascript",
+		"-e", `tell application "Terminal" to do script "`+quoted+`"`,
+		"-e", `tell application "Terminal" to activate`)
+	return err
 }
 
 func openApp(name string) error {

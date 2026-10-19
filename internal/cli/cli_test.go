@@ -30,13 +30,14 @@ func setHome(t *testing.T) string {
 	}
 	// Whether Claude Desktop is open on the machine running the tests must not
 	// change what they see.
-	running, inside, quit, open := hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp
+	running, inside, quit, open, handOff := hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp, hosts.HandOff
 	hosts.RunningCheck = func(string) bool { return false }
 	hosts.InsideApp = func(string) bool { return false }
 	hosts.QuitApp = func(string, time.Duration) error { t.Fatal("a test tried to quit a real app"); return nil }
 	hosts.OpenApp = func(string) error { t.Fatal("a test tried to open a real app"); return nil }
+	hosts.HandOff = func(string) error { t.Fatal("a test tried to open Terminal"); return nil }
 	t.Cleanup(func() {
-		hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp = running, inside, quit, open
+		hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp, hosts.HandOff = running, inside, quit, open, handOff
 	})
 	// No test runs a real `claude` or `grok`: by default neither is installed.
 	look, runner := lookPath, runTool

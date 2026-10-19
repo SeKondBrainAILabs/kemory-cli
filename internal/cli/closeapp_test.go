@@ -83,21 +83,44 @@ func TestFixAsksBeforeQuittingClaudeDesktop(t *testing.T) {
 	}
 }
 
-func TestNeverQuitTheAppKemoryRunsInside(t *testing.T) {
+func TestInsideTheAppTheFixContinuesInTerminal(t *testing.T) {
 	config := duplicateDesktopSetup(t)
 	desktop := openDesktop(t, config)
 	hosts.InsideApp = func(string) bool { return true }
+	var handedOff []string
+	hosts.HandOff = func(line string) error {
+		handedOff = append(handedOff, line)
+		return nil
+	}
+	interactive := stdinIsTerminal
+	t.Cleanup(func() { stdinIsTerminal = interactive })
 
-	_, report := runDoctor(t, "--fix", "--yes")
+	detail := func(report doctorReport) string {
+		for _, c := range report.Checks {
+			if c.Check == "mcp host: claude-desktop" && c.Detail != nil {
+				return *c.Detail
+			}
+		}
+		return ""
+	}
+
+	withStdin(t, "\n")
+	stdinIsTerminal = func() bool { return true }
+	_, report := runDoctor(t, "--fix")
+	if len(handedOff) != 0 || !strings.Contains(detail(report), "Terminal or iTerm") {
+		t.Fatalf("declining must say where to run it: %v %q", handedOff, detail(report))
+	}
+
+	withStdin(t, "y\n")
+	stdinIsTerminal = func() bool { return true }
+	_, report = runDoctor(t, "--fix")
+	if len(handedOff) != 1 || !strings.HasSuffix(handedOff[0], " doctor --fix") || !strings.Contains(detail(report), "continued in Terminal") {
+		t.Fatalf("yes must continue in Terminal: %v %q", handedOff, detail(report))
+	}
 	if len(desktop.events) != 0 {
 		t.Fatalf("quit the app kemory runs inside: %v", desktop.events)
 	}
-	for _, c := range report.Checks {
-		if c.Check == "mcp host: claude-desktop" && (c.Detail == nil || !strings.Contains(*c.Detail, "Terminal or iTerm")) {
-			t.Fatalf("doctor: %+v", c)
-		}
-	}
 	if _, err := os.Stat(config); err != nil {
-		t.Fatal("the entry must stay until the fix can run outside the app")
+		t.Fatal("the entry must stay for the run in Terminal to remove")
 	}
 }

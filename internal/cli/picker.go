@@ -34,7 +34,7 @@ func planned(env, host string, covered map[string]string) hostResult {
 	}
 	if hosts.RunningCheck(host) {
 		if hosts.InsideApp(host) {
-			detail += ". " + insideAppNote
+			detail += ", from Terminal: this terminal runs inside the app, which has to quit"
 		} else {
 			detail += ", quitting and reopening the app"
 		}
