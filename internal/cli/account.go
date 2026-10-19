@@ -29,6 +29,22 @@ func agentPath(id, suffix string) string {
 	return "/api/v1/agents/" + url.PathEscape(id) + suffix
 }
 
+// agentIDArg rejects anything but one agent UUID before a request is sent. An
+// API key passed by mistake is never echoed back: it would land in the
+// terminal and its scrollback a second time.
+func agentIDArg(_ *cobra.Command, args []string) error {
+	if err := cobra.ExactArgs(1)(nil, args); err != nil {
+		return err
+	}
+	switch id := args[0]; {
+	case strings.HasPrefix(id, "kemory_"):
+		return exits.New("that is an API key, not an agent ID. Pass the agent_id that `kemory keys create` printed, or find it with `kemory keys list`.", exits.Usage)
+	case !uuidRE.MatchString(id):
+		return exits.New(fmt.Sprintf("'%s' is not an agent ID (a UUID). Find it with `kemory keys list`.", id), exits.Usage)
+	}
+	return nil
+}
+
 type keyResponse struct {
 	AgentID string `json:"agent_id"`
 	APIKey  string `json:"api_key"`
@@ -116,7 +132,7 @@ func newKeysCmd(g *globals) *cobra.Command {
 	rotate := &cobra.Command{
 		Use:   "rotate <agent-id>",
 		Short: "Issue a new key for an agent; the old one stops working.",
-		Args:  cobra.ExactArgs(1),
+		Args:  agentIDArg,
 		RunE: func(_ *cobra.Command, args []string) error {
 			creds, err := api.RequireCreds(g.env)
 			if err != nil {
@@ -144,7 +160,7 @@ func newKeysCmd(g *globals) *cobra.Command {
 	approve := &cobra.Command{
 		Use:   "approve <agent-id>",
 		Short: "Approve a pending agent so its key starts working (or re-activate a suspended one).",
-		Args:  cobra.ExactArgs(1),
+		Args:  agentIDArg,
 		RunE: func(_ *cobra.Command, args []string) error {
 			creds, err := api.RequireCreds(g.env)
 			if err != nil {
@@ -169,7 +185,7 @@ func newKeysCmd(g *globals) *cobra.Command {
 		Use:   "revoke <agent-id>",
 		Short: "Revoke an agent's key permanently.",
 		Long:  "Revoke an agent's key permanently. The agent stays in `kemory keys list` as\nrevoked; remove it afterwards with `kemory keys delete`.",
-		Args:  cobra.ExactArgs(1),
+		Args:  agentIDArg,
 		RunE: func(_ *cobra.Command, args []string) error {
 			creds, err := api.RequireCreds(g.env)
 			if err != nil {
@@ -195,7 +211,7 @@ func newKeysCmd(g *globals) *cobra.Command {
 	del := &cobra.Command{
 		Use:   "delete <agent-id>",
 		Short: "Delete a revoked agent for good.",
-		Args:  cobra.ExactArgs(1),
+		Args:  agentIDArg,
 		RunE: func(_ *cobra.Command, args []string) error {
 			creds, err := api.RequireCreds(g.env)
 			if err != nil {
