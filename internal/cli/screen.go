@@ -224,7 +224,7 @@ func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	for _, h := range missing {
 		render.Echo(ui.Rail(ui.Detected(h, ui.Missing, "not installed")))
 	}
-	render.Echo(ui.Rail(ui.Dim("full: loads your memory and saves sessions on its own · tools: the AI uses memory when it decides")))
+	render.Echo(ui.Rail(ui.Dim(levelLegend)))
 	render.Echo(ui.Rail(""))
 	if len(ready) == 0 {
 		render.Echo(ui.End(ui.Done("Every AI client here already has Kemory.")))

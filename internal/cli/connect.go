@@ -188,7 +188,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		written[h] = true
 		return hostResult{
 			host: h, detail: pluginInstalled(h), ok: true,
-			short: via(h, "plugin") + " installed", next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
+			short: level(h, "plugin"), next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
 		}
 	}
 	path := hosts.ResolveConfig(h)

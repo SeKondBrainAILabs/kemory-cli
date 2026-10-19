@@ -49,23 +49,36 @@ type pickRow struct {
 	short string
 }
 
-// The two levels a client can have. full loads memory when a session starts
-// and saves the session on its own; tools leaves memory to the model.
+// The two levels a client can have. automatic loads memory when a session
+// starts and saves the session on its own; on demand leaves memory to the
+// model, which uses Kemory's tools when it decides to.
 const (
-	levelFull  = "full"
-	levelTools = "tools"
+	levelFull  = "automatic"
+	levelTools = "on demand"
 )
+
+// levelLegend says what the two levels mean, under the clients list.
+const levelLegend = levelFull + ": loads and saves your memory on its own · " +
+	levelTools + ": the AI uses memory when it decides"
 
 // pluginLevel is what each host's Kemory plugin gives it. Grok Build has no
 // session-start event, so its plugin cannot load memory on its own.
 var pluginLevel = map[string]string{"claude-code": levelFull, "grok": levelTools}
 
-// via says how a covered host reaches Kemory and what that gives it.
+// level is what a covered host gets from Kemory, from its coverage reason.
+func level(host, reason string) string {
+	if strings.Contains(reason, "connector") {
+		return levelTools
+	}
+	return orDefault(pluginLevel[host], levelFull)
+}
+
+// via is level with the way the host reaches Kemory, for doctor.
 func via(host, reason string) string {
 	if strings.Contains(reason, "connector") {
-		return levelTools + " · claude.ai connector"
+		return level(host, reason) + " · claude.ai connector"
 	}
-	return orDefault(pluginLevel[host], levelFull) + " · Kemory plugin"
+	return level(host, reason) + " · Kemory plugin"
 }
 
 // readyStatus says, briefly, what connecting a ready host would install.
@@ -74,7 +87,7 @@ func readyStatus(env, host string) string {
 	switch {
 	case pluginTools[host] != "" && env == config.DefaultEnv:
 		if _, err := lookPath(pluginTools[host]); err == nil {
-			status = via(host, "plugin")
+			status = level(host, "plugin")
 		}
 	case memoryHooks[host].install != nil:
 		status = levelFull
@@ -100,10 +113,10 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 			rows = append(rows, pickRow{
 				h, "connected", reason + "; " + path +
 					" also has a duplicate entry, which `kemory doctor --fix` removes",
-				via(h, reason) + " · duplicate entry: run kemory doctor --fix",
+				level(h, reason) + " · duplicate entry: run kemory doctor --fix",
 			})
 		case reason != "":
-			rows = append(rows, pickRow{h, "connected", reason, via(h, reason)})
+			rows = append(rows, pickRow{h, "connected", reason, level(h, reason)})
 		case !hosts.Installed(h):
 			// A discontinued client is only listed where it is still installed.
 			if !hosts.Discontinued(h) {
