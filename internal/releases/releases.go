@@ -41,6 +41,11 @@ func Latest(ctx context.Context) (string, error) {
 	return "", err
 }
 
+// LatestOnNPM is the newest version npm can install. It trails a GitHub
+// release by the minutes the npm publish takes, so it is what an npm
+// install is offered.
+func LatestOnNPM(ctx context.Context) (string, error) { return latestFromNPM(ctx) }
+
 func latestFromNPM(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, NPMURL, nil)
 	if err != nil {

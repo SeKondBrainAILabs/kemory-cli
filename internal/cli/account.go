@@ -435,7 +435,16 @@ func newUpgradeCmd() *cobra.Command {
 			defer cancel()
 			var latest string
 			var err error
-			loading("Checking for a newer version…", func() { latest, err = releases.Latest(ctx) })
+			loading("Checking for a newer version…", func() {
+				// An npm install is offered what npm has, not a GitHub release
+				// whose npm publish has not landed yet.
+				if detectChannel().name == "npm" {
+					if latest, err = releases.LatestOnNPM(ctx); err == nil {
+						return
+					}
+				}
+				latest, err = releases.Latest(ctx)
+			})
 			if err != nil {
 				return exits.New("could not check for releases: "+err.Error(), exits.Network)
 			}
