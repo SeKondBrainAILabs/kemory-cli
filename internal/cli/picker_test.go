@@ -7,14 +7,17 @@ import (
 	"testing"
 )
 
-// pickerMachine has Cursor and Codex installed, Codex already connected, a
-// signed-in prod user and an interactive terminal answering answer.
+// pickerMachine has Cursor, Warp and Codex installed, Warp connected, Codex
+// with an MCP entry but no memory hooks, a signed-in prod user and an
+// interactive terminal answering answer.
 func pickerMachine(t *testing.T, answer string) string {
 	t.Helper()
 	home := setHome(t)
 	srv := fakeKemory(t)
 	saveCreds(t, srv.URL)
 	installApp(t, home, ".cursor")
+	installApp(t, home, ".warp")
+	writeFile(t, filepath.Join(home, ".warp", ".mcp.json"), `{"mcpServers": {"kemory": {"command": "kemory"}}}`)
 	installApp(t, home, ".codex")
 	writeFile(t, filepath.Join(home, ".codex", "config.toml"), "[mcp_servers.kemory]\ncommand = \"kemory\"\nargs = [\"mcp\", \"serve\"]\n")
 	interactive := stdinIsTerminal
@@ -31,13 +34,19 @@ func TestConnectListsClientsAndConnectsTheReadyOnesOnEnter(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("got %d\n%s\n%s", code, out, errOut)
 	}
-	for _, want := range []string{"[ready    ] cursor", "add the MCP entry to", "[connected] codex", "not found:"} {
+	for _, want := range []string{
+		"[ready    ] cursor", "add the MCP entry to", "[connected] warp",
+		"[ready    ] codex", "add automatic memory hooks (MCP entry already in", "not found:",
+	} {
 		if !strings.Contains(out+errOut, want) {
 			t.Fatalf("missing %q in:\n%s\n%s", want, out, errOut)
 		}
 	}
 	if mcpServers(t, filepath.Join(home, ".cursor", "mcp.json"))["kemory"] == nil {
 		t.Fatal("Enter must connect every ready client")
+	}
+	if !strings.Contains(readFile(t, filepath.Join(home, ".codex", "hooks.json")), "hook session-start --agent codex") {
+		t.Fatal("Codex must get its memory hooks")
 	}
 	if !strings.Contains(out, "Connected as") {
 		t.Fatalf("the connection check must still run:\n%s", out)

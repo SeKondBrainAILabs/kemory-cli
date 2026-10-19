@@ -61,9 +61,11 @@ func (e Event) incremental() bool {
 }
 
 // UserTurns reads the user's own prompts from a transcript in JSON Lines. It
-// accepts Claude Code's shape ({"type":"user","message":{"content":…}}) and
-// the common {"role":"user","content":…} one. Harness-injected text (starting
-// with "<" or "Caveat:") is skipped: it is not the user's intent.
+// accepts Claude Code's shape ({"type":"user","message":{"content":…}}),
+// Codex's ({"type":"response_item","payload":{"type":"message","role":"user",
+// "content":[{"type":"input_text","text":…}]}}) and the common
+// {"role":"user","content":…} one. Harness-injected text (starting with "<"
+// or "Caveat:") is skipped: it is not the user's intent.
 func UserTurns(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -80,6 +82,17 @@ func UserTurns(path string) ([]string, error) {
 		}
 		var content any
 		switch {
+		case line["type"] == "response_item":
+			payload, _ := line["payload"].(map[string]any)
+			if payload["type"] != "message" || payload["role"] != "user" {
+				continue
+			}
+			// Codex puts AGENTS.md, the environment and plugin lists into the
+			// first prompt as extra parts, so filter part by part.
+			if text := codexUserText(payload["content"]); text != "" {
+				turns = append(turns, text)
+			}
+			continue
 		case line["type"] == "user":
 			if msg, ok := line["message"].(map[string]any); ok {
 				content = msg["content"]
@@ -95,6 +108,24 @@ func UserTurns(path string) ([]string, error) {
 		}
 	}
 	return turns, scanner.Err()
+}
+
+func codexUserText(content any) string {
+	parts, _ := content.([]any)
+	var kept []string
+	for _, p := range parts {
+		m, _ := p.(map[string]any)
+		if m["type"] != "input_text" {
+			continue
+		}
+		t, _ := m["text"].(string)
+		t = strings.TrimSpace(t)
+		if t == "" || strings.HasPrefix(t, "<") || strings.HasPrefix(t, "# AGENTS.md instructions") {
+			continue
+		}
+		kept = append(kept, t)
+	}
+	return strings.Join(kept, " ")
 }
 
 func flatten(content any) string {

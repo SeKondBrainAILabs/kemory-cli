@@ -190,3 +190,19 @@ func TestPlanReadsThePluginsOldMarker(t *testing.T) {
 		t.Fatal("a bare-digest marker counts as no turns stored")
 	}
 }
+
+func TestUserTurnsReadsCodexAndDropsInjectedParts(t *testing.T) {
+	path := writeTranscript(t,
+		`{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [`+
+			`{"type": "input_text", "text": "<environment_context><cwd>/w</cwd></environment_context>"},`+
+			`{"type": "input_text", "text": "# AGENTS.md instructions\n<INSTRUCTIONS>…</INSTRUCTIONS>"}]}}`,
+		`{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "fix the build"}]}}`,
+		`{"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]}}`,
+		`{"type": "response_item", "payload": {"type": "message", "role": "user", "content": [`+
+			`{"type": "input_text", "text": "see this"}, {"type": "input_image", "image_url": "x"}, {"type": "input_text", "text": "</image>"}]}}`,
+		`{"type": "event_msg", "payload": {"type": "task_started"}}`)
+	turns, err := UserTurns(path)
+	if err != nil || strings.Join(turns, "|") != "fix the build|see this" {
+		t.Fatalf("got %q %v", turns, err)
+	}
+}

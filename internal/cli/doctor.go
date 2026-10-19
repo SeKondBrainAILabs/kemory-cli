@@ -308,9 +308,26 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 		case reason != "" && installed:
 			wired++
 			d.emit(label, render.Pass, reason)
+		case len(entries) > 0 && installed && needsHooks(host):
+			wired++
+			if !d.fix {
+				fixable = true
+				d.emit(label, render.Skip, path+" — tools only, no automatic memory. `kemory doctor --fix` adds the hooks")
+				continue
+			}
+			hooks, err := addHooks(host, launch)
+			if err != nil {
+				d.emit(label, render.Fail, "memory hooks not added: "+err.Error())
+				continue
+			}
+			d.emit(label, render.Pass, joinNote(path, hooks))
 		case len(entries) > 0 && installed:
 			wired++
-			d.emit(label, render.Pass, path)
+			detail := path
+			if _, ok := memoryHooks[host]; ok {
+				detail += " — automatic memory hooks installed"
+			}
+			d.emit(label, render.Pass, detail)
 		case len(entries) > 0:
 			if !d.fix {
 				fixable = true
@@ -349,7 +366,13 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 				d.emit(label, render.Skip, "installed, not connected — "+note)
 			default:
 				wired++
-				d.emit(label, render.Pass, joinNote(fmt.Sprintf("wrote kemory entry into %s", path), orDefault(note, "restart "+host)))
+				detail := joinNote(fmt.Sprintf("wrote kemory entry into %s", path), orDefault(note, "restart "+host))
+				if hooks, err := addHooks(host, launch); err != nil {
+					detail = joinNote(detail, "memory hooks not added: "+err.Error())
+				} else {
+					detail = joinNote(detail, hooks)
+				}
+				d.emit(label, render.Pass, detail)
 			}
 		}
 	}

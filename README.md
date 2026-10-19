@@ -82,6 +82,11 @@ and in Claude Code also load your memory when a session starts. Without that
 command, or for an environment other than prod, they write the MCP entry
 instead.
 
+For Codex they also add hooks to `~/.codex/hooks.json` that load your memory
+when a session starts and save the session as it goes ([Hooks](#hooks)). Codex
+runs a new hook only after you approve it, so open Codex once and approve them
+with `/hooks`. Your other hooks in that file are left as they are.
+
 For every other client they write an MCP entry. The entry only starts
 `kemory mcp serve`; no token or key is written into the client's config, and
 everything else in the file is left as it was.
@@ -90,7 +95,7 @@ everything else in the file is left as it was.
 |---|---|---|
 | `claude-code` | Claude Code | `~/.claude.json` |
 | `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| `codex` | OpenAI Codex | `~/.codex/config.toml`, or `$CODEX_HOME/config.toml` |
+| `codex` | OpenAI Codex | `~/.codex/config.toml`, plus memory hooks in `~/.codex/hooks.json` (or under `$CODEX_HOME`) |
 | `cursor` | Cursor | `~/.cursor/mcp.json` |
 | `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json` |
 | `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` |

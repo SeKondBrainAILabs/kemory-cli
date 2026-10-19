@@ -29,6 +29,9 @@ func planned(env, host string, covered map[string]string) hostResult {
 		note = errNoTool(tool).Error() + ", so no plugin"
 	}
 	detail := "would add the MCP entry to " + hosts.ResolveConfig(host)
+	if _, ok := memoryHooks[host]; ok {
+		detail += " and memory hooks to " + hosts.CodexHooksPath()
+	}
 	if hosts.RunningCheck(host) {
 		if hosts.InsideApp(host) {
 			detail += ". " + insideAppNote
@@ -62,6 +65,8 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 			rows = append(rows, pickRow{h, "connected", reason})
 		case !hosts.Installed(h):
 			missing = append(missing, h)
+		case len(entries) > 0 && needsHooks(h):
+			rows = append(rows, pickRow{h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")"})
 		case len(entries) > 0:
 			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path})
 		default:

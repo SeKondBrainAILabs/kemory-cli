@@ -141,7 +141,13 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 			lines = append(lines, hostResult{host: h, detail: note})
 		default:
 			written[h] = true
-			lines = append(lines, hostResult{host: h, detail: joinNote(joinNote(path, note), fallback), ok: true})
+			detail := joinNote(joinNote(path, note), fallback)
+			if hooks, err := addHooks(h, launch); err != nil {
+				detail = joinNote(detail, "memory hooks not added: "+err.Error())
+			} else {
+				detail = joinNote(detail, hooks)
+			}
+			lines = append(lines, hostResult{host: h, detail: detail, ok: true})
 		}
 	}
 	lines = append(lines, results...)
