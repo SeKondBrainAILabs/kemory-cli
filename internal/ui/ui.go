@@ -117,6 +117,14 @@ var (
 	cross = lipgloss.NewStyle().Foreground(Orange).Bold(true).Render("✗")
 )
 
+// Mark is the SeKondBrain mark, ◉ in Kemory's colour.
+func Mark() string { return circle }
+
+// Section is a section title.
+func Section(title string) string {
+	return lipgloss.NewStyle().Foreground(Purple).Bold(true).Render(title)
+}
+
 // Dim is secondary text.
 func Dim(text string) string { return dim.Render(text) }
 

@@ -29,11 +29,11 @@ type globals struct {
 	screen *screen
 }
 
-func newRoot() (*cobra.Command, *globals) {
+func newRoot() *cobra.Command {
 	g := &globals{}
 	root := &cobra.Command{
 		Use:           "kemory",
-		Short:         "Kemory — multi-tenant memory for AI agents.",
+		Short:         "Kemory — persistent memory for your AI agents.",
 		Version:       version.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -94,12 +94,13 @@ func newRoot() (*cobra.Command, *globals) {
 	}
 	root.SetHelpCommandGroupID("maintenance")
 	root.SetCompletionCommandGroupID("maintenance")
-	return root, g
+	installHelp(root)
+	return root
 }
 
 // Execute runs the CLI with args and returns the process exit code.
 func Execute(args []string) int {
-	root, _ := newRoot()
+	root := newRoot()
 	root.SetArgs(args)
 	// --version and --help go through cobra's writers, not render.
 	root.SetOut(render.Out)
