@@ -96,6 +96,7 @@ var clients = map[string]client{
 	"grok":           {"Grok", "✕", monoBg, monoFg},
 	"continue":       {"Continue", "▶", lipgloss.Color("#E8A33D"), lipgloss.Color("#000000")},
 	"warp":           {"Warp", "»", lipgloss.Color("#01A4FF"), white},
+	"opencode":       {"OpenCode", "▣", monoBg, monoFg},
 }
 
 // Name is the product name of a host.

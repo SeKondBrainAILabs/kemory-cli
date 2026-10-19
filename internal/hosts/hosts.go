@@ -26,6 +26,8 @@ type host struct {
 	key  string
 	// typed hosts require "type": "stdio" in each entry.
 	typed bool
+	// local hosts (OpenCode) take {"type": "local", "command": [...]}.
+	local bool
 	// paths returns the candidate config files, most likely first.
 	paths func() []string
 	// appDirs are directories the host app itself creates. Nil means the
@@ -106,6 +108,13 @@ var registry = []host{
 		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
 	},
 	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json")},
+	{
+		name: "opencode", key: "mcp", local: true,
+		paths: func() []string {
+			return []string{filepath.Join(openCodeDir(), "opencode.json"), filepath.Join(openCodeDir(), "opencode.jsonc")}
+		},
+		appDirs: func() []string { return []string{openCodeDir(), filepath.Join(home(), ".local", "share", "opencode")} },
+	},
 }
 
 // Names lists the supported hosts in display order.
@@ -201,8 +210,9 @@ func Installed(name string) bool {
 		return false
 	}
 	ours := map[string]bool{
-		filepath.Clean(CodexHooksPath()):  true,
-		filepath.Clean(CursorHooksPath()): true,
+		filepath.Clean(CodexHooksPath()):     true,
+		filepath.Clean(CursorHooksPath()):    true,
+		filepath.Clean(OpenCodePluginPath()): true,
 	}
 	for _, other := range registry {
 		for _, p := range other.paths() {
@@ -345,7 +355,7 @@ func WriteEntry(name, path, server string, launch Launch) error {
 	if h.toml {
 		return writeTOMLEntry(path, server, launch)
 	}
-	return writeJSONEntry(path, h.key, h.typed, server, launch)
+	return writeJSONEntry(path, h, server, launch)
 }
 
 // RemoveEntries drops the named entries from host's config at path. A file

@@ -93,6 +93,11 @@ with `/hooks`. Your other hooks in that file are left as they are.
 For Cursor they add the same hooks to `~/.cursor/hooks.json`. Cursor runs
 them without asking, and leaves your other hooks as they are.
 
+For OpenCode they write a plugin, `~/.config/opencode/plugins/kemory.js`, that
+does the same: it adds your memory to the system prompt when a session starts
+and saves your prompts as the session goes. Connecting again replaces it, so
+keep your own plugins in other files.
+
 For every other client they write an MCP entry. The entry only starts
 `kemory mcp serve`; no token or key is written into the client's config, and
 everything else in the file is left as it was.
@@ -112,9 +117,10 @@ everything else in the file is left as it was.
 | `grok` | Grok CLI | `~/.grok/config.toml` |
 | `continue` | Continue | `~/.continue/mcpServers/kemory.json` |
 | `warp` | Warp | `~/.warp/.mcp.json` |
+| `opencode` | OpenCode | `~/.config/opencode/opencode.json`, plus the memory plugin in `~/.config/opencode/plugins/kemory.js` |
 
 On Windows the files under `Library/Application Support` and `.config` live in
-`%APPDATA%` instead. Grok also reads `~/.claude.json`, so the `claude-code`
+`%APPDATA%` instead, except OpenCode's, which stay in `~\.config\opencode`. Grok also reads `~/.claude.json`, so the `claude-code`
 entry reaches it too.
 
 ### One connection per client
@@ -187,7 +193,7 @@ the commands the hooks call.
 
 | Command | Hook event | Does |
 |---|---|---|
-| `kemory hook session-start --agent <agent>` | session start | Prints your namespace summaries from Kemory, led by a short instruction on using it, in the shape the agent injects. `--agent` is `claude-code`, `codex`, `gemini-cli`, `cursor`, or `text` for plain output. |
+| `kemory hook session-start --agent <agent>` | session start | Prints your namespace summaries from Kemory, led by a short instruction on using it, in the shape the agent injects. `--agent` is `claude-code`, `codex`, `gemini-cli`, `cursor`, `opencode`, or `text` for plain output. |
 | `kemory hook capture --agent <agent>` | after each turn, before compaction, session end | Reads the transcript the agent's payload names (or `--transcript`) and saves your prompts that are not stored yet as one memory. After a turn it waits until there are 3 new prompts; at compaction and session end it saves whatever is pending. Prints nothing. |
 
 Neither can hold up the agent: any error is silent, the exit status is always

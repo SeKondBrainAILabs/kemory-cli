@@ -43,7 +43,8 @@ func readJSON(path, key string) (cfg, servers *jsonedit.Object, err error) {
 	return cfg, servers, nil
 }
 
-func writeJSONEntry(path, key string, typed bool, name string, launch Launch) error {
+func writeJSONEntry(path string, h host, name string, launch Launch) error {
+	key := h.key
 	cfg, servers, err := readJSON(path, key)
 	if err != nil {
 		return err
@@ -54,12 +55,19 @@ func writeJSONEntry(path, key string, typed bool, name string, launch Launch) er
 		Args    []string          `json:"args"`
 		Env     map[string]string `json:"env"`
 	}{launch.Command, launch.Args, map[string]string{}}
-	if typed {
+	switch {
+	case h.typed:
 		entry = struct {
 			Type    string   `json:"type"`
 			Command string   `json:"command"`
 			Args    []string `json:"args"`
 		}{"stdio", launch.Command, launch.Args}
+	case h.local:
+		entry = struct {
+			Type    string   `json:"type"`
+			Command []string `json:"command"`
+			Enabled bool     `json:"enabled"`
+		}{"local", append([]string{launch.Command}, launch.Args...), true}
 	}
 	if err := servers.SetValue(name, entry); err != nil {
 		return err

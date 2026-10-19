@@ -27,6 +27,11 @@ var memoryHooks = map[string]memoryHook{
 		installed: hosts.CursorHooksInstalled,
 		path:      hosts.CursorHooksPath,
 	},
+	"opencode": {
+		install:   hosts.InstallOpenCodePlugin,
+		installed: hosts.OpenCodePluginInstalled,
+		path:      hosts.OpenCodePluginPath,
+	},
 }
 
 // needsHooks reports whether host takes memory hooks that are not there yet.

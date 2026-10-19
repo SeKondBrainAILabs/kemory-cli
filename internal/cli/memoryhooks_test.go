@@ -65,3 +65,20 @@ func TestConnectCursorAddsTheEntryAndHooksWithNothingToApprove(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectOpenCodeAddsTheEntryAndPlugin(t *testing.T) {
+	home := setHome(t)
+	code, out, _ := run(t, "mcp", "install", "--host", "opencode")
+	if code != 0 || !strings.Contains(out, filepath.Join("opencode", "plugins", "kemory.js")) {
+		t.Fatalf("got %d %q", code, out)
+	}
+	config := filepath.Join(home, ".config", "opencode", "opencode.json")
+	if !strings.Contains(readFile(t, config), `"type": "local"`) {
+		t.Fatal("no MCP entry")
+	}
+	installApp(t, home, filepath.Join(".config", "opencode"))
+	fakeReleases(t, `[]`)
+	if _, report := runDoctor(t); statusOf(report, "mcp host: opencode") != "pass" {
+		t.Fatalf("doctor: %+v", report)
+	}
+}
