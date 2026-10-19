@@ -92,24 +92,47 @@ func TestKeysListShowsTheAgentLabel(t *testing.T) {
 	}
 }
 
+const agentID = "fb232383-fe27-48cf-b0ed-45f67c63de3f"
+
 func TestKeysRevokeAsksAndDeleteNeedsRevokeFirst(t *testing.T) {
 	setHome(t)
 	v := newFakeVault(t, map[string]func(http.ResponseWriter){
-		"/api/v1/agents/ag-1/revoke": jsonReply(200, `{}`),
-		"/api/v1/agents/ag-1":        jsonReply(400, `{"detail": "not revoked"}`),
+		"/api/v1/agents/" + agentID + "/revoke": jsonReply(200, `{}`),
+		"/api/v1/agents/" + agentID:             jsonReply(400, `{"detail": "not revoked"}`),
 	})
 	withStdin(t, "\n")
-	if code, _, _ := run(t, "keys", "revoke", "ag-1"); code == 0 {
+	if code, _, _ := run(t, "keys", "revoke", agentID); code == 0 {
 		t.Fatal("declining must not revoke")
 	}
-	if _, called := v.methods["/api/v1/agents/ag-1/revoke"]; called {
+	if _, called := v.methods["/api/v1/agents/"+agentID+"/revoke"]; called {
 		t.Fatal("revoke was sent without confirmation")
 	}
-	if code, out, _ := run(t, "keys", "revoke", "ag-1", "--yes"); code != 0 || !strings.Contains(out, "revoked") {
+	if code, out, _ := run(t, "keys", "revoke", agentID, "--yes"); code != 0 || !strings.Contains(out, "revoked") {
 		t.Fatalf("got %d %q", code, out)
 	}
-	if code, _, errOut := run(t, "keys", "delete", "ag-1"); code != exits.Conflict || !strings.Contains(errOut, "revoked first") {
+	if code, _, errOut := run(t, "keys", "delete", agentID); code != exits.Conflict || !strings.Contains(errOut, "revoked first") {
 		t.Fatalf("got %d %q", code, errOut)
+	}
+}
+
+func TestKeysAgentCommandsRejectAnAPIKeyWithoutSendingOrEchoingIt(t *testing.T) {
+	setHome(t)
+	v := newFakeVault(t, map[string]func(http.ResponseWriter){})
+	const key = "kemory_3xampleKeyNotARealOne000000000000"
+	for _, cmd := range []string{"approve", "rotate", "revoke", "delete"} {
+		code, out, errOut := run(t, "keys", cmd, key)
+		if code != exits.Usage || !strings.Contains(errOut, "that is an API key, not an agent ID") {
+			t.Fatalf("%s: got %d %q", cmd, code, errOut)
+		}
+		if strings.Contains(out+errOut, key) {
+			t.Fatalf("%s echoed the key back:\n%s%s", cmd, out, errOut)
+		}
+	}
+	if code, _, errOut := run(t, "keys", "approve", "ag-1"); code != exits.Usage || !strings.Contains(errOut, "is not an agent ID") {
+		t.Fatalf("non-UUID: got %d %q", code, errOut)
+	}
+	if len(v.methods) != 0 {
+		t.Fatalf("a request was sent: %v", v.methods)
 	}
 }
 
