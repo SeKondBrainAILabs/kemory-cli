@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"runtime"
 	"strings"
 	"time"
@@ -41,6 +42,8 @@ type doctor struct {
 	fix    bool
 	yes    bool
 	checks []checkResult
+	// fresh is the refreshed sign-in, kept to name the org in the report.
+	fresh *config.Credentials
 }
 
 func (d *doctor) emit(label string, status render.Status, detail string) {
@@ -49,7 +52,10 @@ func (d *doctor) emit(label string, status render.Status, detail string) {
 		dp = &detail
 	}
 	d.checks = append(d.checks, checkResult{Check: label, Status: string(status), Detail: dp})
-	render.Check(label, status, detail)
+	// The styled report is grouped, so it is printed once every check ran.
+	if !render.Styled() {
+		render.Check(label, status, detail)
+	}
 }
 
 func newDoctorCmd(g *globals) *cobra.Command {
@@ -82,11 +88,7 @@ func (d *doctor) run() error {
 	}
 
 	if render.Styled() {
-		render.KVs([]render.KV{
-			{Key: "   os", Value: runtime.GOOS + "/" + runtime.GOARCH},
-			{Key: "   cli", Value: version.Version},
-			{Key: "   kemory", Value: kemoryURL},
-		})
+		render.Echo("  " + ui.Dim(version.Version+" · "+runtime.GOOS+"/"+runtime.GOARCH+" · "+hostOf(kemoryURL)))
 	} else {
 		render.Heading("kemory doctor")
 		render.KVs([]render.KV{
@@ -122,6 +124,8 @@ func (d *doctor) run() error {
 	}
 	render.Echo("")
 	if render.Styled() {
+		d.report()
+		render.Echo("")
 		count := map[string]int{}
 		for _, c := range d.checks {
 			count[c.Status]++
@@ -249,6 +253,7 @@ func roughDuration(d time.Duration) string {
 // command would follow it; doctor reports where the identity resolves but
 // does not rewrite the credentials file.
 func (d *doctor) checkRoundTrip(fresh *config.Credentials, kemoryURL string) {
+	d.fresh = fresh
 	if fresh == nil || fresh.AccessToken == "" {
 		d.emit("auth round-trip", render.Skip, "no usable credentials")
 		return
@@ -459,4 +464,99 @@ func (d *doctor) checkFreshness() {
 			d.emit("cli up-to-date", render.Pass, "latest is "+latest)
 		}
 	}
+}
+
+func hostOf(raw string) string {
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return raw
+}
+
+// report prints the checks grouped as a person reads them: the account,
+// the AI clients by name with the level each has, and the CLI. A problem
+// keeps its full hint; a pass shows only what it found.
+func (d *doctor) report() {
+	sections := []struct {
+		title string
+		match func(string) bool
+	}{
+		{"Account", func(c string) bool {
+			return c == "credentials cached" || c == "kemory reachable" || c == "token refresh" || c == "auth round-trip"
+		}},
+		{"AI clients", func(c string) bool { return strings.HasPrefix(c, "mcp host") }},
+		{"CLI", func(c string) bool { return c == "cli up-to-date" }},
+	}
+	for _, sec := range sections {
+		render.Echo("")
+		render.Echo(ui.Section(sec.title))
+		for _, c := range d.checks {
+			if !sec.match(c.Check) {
+				continue
+			}
+			detail := ""
+			if c.Detail != nil {
+				detail = *c.Detail
+			}
+			label, short := d.plain(c.Check, render.Status(c.Status), detail)
+			render.Check(label, render.Status(c.Status), short)
+		}
+	}
+}
+
+// plain is a check's label and detail in words: product names instead of
+// host ids, and for a pass only what it found.
+func (d *doctor) plain(check string, status render.Status, detail string) (string, string) {
+	switch check {
+	case "credentials cached":
+		if _, after, ok := strings.Cut(detail, ", "); ok && status == render.Pass {
+			detail = after
+		}
+		return "Signed in", detail
+	case "kemory reachable":
+		if status == render.Pass {
+			detail = "yes"
+		}
+		return "Kemory reachable", detail
+	case "token refresh":
+		if status == render.Pass {
+			detail = "works"
+		}
+		return "Session refresh", detail
+	case "auth round-trip":
+		if status == render.Pass && d.fresh != nil {
+			if org := orgNameFor(d.fresh); org != "" {
+				detail = org
+			}
+		}
+		return "Organisation", detail
+	case "cli up-to-date":
+		if status == render.Pass {
+			detail = version.Version
+		}
+		return "Up to date", detail
+	case "mcp host config":
+		return "Any client", detail
+	}
+	host := strings.TrimPrefix(check, "mcp host: ")
+	plugin := strings.HasSuffix(host, " plugin")
+	host = strings.TrimSuffix(host, " plugin")
+	label := ui.Name(host)
+	if plugin {
+		label += " plugin"
+	}
+	if status != render.Pass {
+		return label, detail
+	}
+	switch {
+	case strings.Contains(detail, "removed"):
+		return label, detail
+	case strings.Contains(detail, "claude.ai connector"):
+		return label, via(host, "connector")
+	case strings.Contains(detail, "Kemory plugin"):
+		return label, via(host, "plugin")
+	case strings.Contains(detail, "automatic memory hooks"):
+		return label, levelFull
+	}
+	return label, levelTools
 }

@@ -36,6 +36,9 @@ type host struct {
 	// appDirs are directories the host app itself creates. Nil means the
 	// directories of the config files.
 	appDirs func() []string
+	// macApps are the app bundles that show it is installed on macOS, before
+	// its first launch has created any of its files.
+	macApps []string
 }
 
 // inHome returns the path under $HOME as a one-element list.
@@ -50,7 +53,7 @@ var registry = []host{
 		paths: inHome(".claude.json"), appDirs: inHome(".claude"),
 	},
 	{
-		name: "claude-desktop", key: "mcpServers",
+		name: "claude-desktop", key: "mcpServers", macApps: []string{"Claude.app"},
 		paths: func() []string {
 			return []string{
 				filepath.Join(home(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
@@ -69,17 +72,17 @@ var registry = []host{
 			return []string{filepath.Join(dir, "config.toml")}
 		},
 	},
-	{name: "cursor", key: "mcpServers", paths: inHome(".cursor", "mcp.json")},
+	{name: "cursor", key: "mcpServers", paths: inHome(".cursor", "mcp.json"), macApps: []string{"Cursor.app"}},
 	{
-		name: "vscode", key: "servers", typed: true,
+		name: "vscode", key: "servers", typed: true, macApps: []string{"Visual Studio Code.app"},
 		paths: func() []string { return []string{filepath.Join(vscodeUserDir(), "mcp.json")} },
 	},
 	{name: "gemini-cli", key: "mcpServers", paths: inHome(".gemini", "settings.json")},
-	{name: "antigravity", key: "mcpServers", paths: inHome(".gemini", "config", "mcp_config.json")},
+	{name: "antigravity", key: "mcpServers", paths: inHome(".gemini", "config", "mcp_config.json"), macApps: []string{"Antigravity.app"}},
 	{
 		// Windsurf is now Devin Desktop, which documents its own config dir.
 		// Installs from before the rename keep the old one.
-		name: "windsurf", key: "mcpServers",
+		name: "windsurf", key: "mcpServers", macApps: []string{"Windsurf.app", "Devin.app"},
 		paths: func() []string {
 			return []string{
 				filepath.Join(userConfigDir(), "devin", "mcp_config.json"),
@@ -99,7 +102,7 @@ var registry = []host{
 		appDirs: func() []string { return []string{clineExtensionDir(), filepath.Join(home(), ".cline")} },
 	},
 	{
-		name: "kiro", key: "mcpServers",
+		name: "kiro", key: "mcpServers", macApps: []string{"Kiro.app"},
 		paths: inHome(".kiro", "settings", "mcp.json"), appDirs: inHome(".kiro"),
 	},
 	{name: "grok", toml: true, paths: inHome(".grok", "config.toml")},
@@ -111,7 +114,7 @@ var registry = []host{
 		name: "continue", key: "mcpServers", discontinued: true,
 		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
 	},
-	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json")},
+	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json"), macApps: []string{"Warp.app"}},
 	{
 		name: "opencode", key: "mcp", local: true,
 		paths: func() []string {
@@ -126,6 +129,12 @@ var registry = []host{
 func Discontinued(name string) bool {
 	h, ok := lookup(name)
 	return ok && h.discontinued
+}
+
+// ApplicationsDirs are where macOS apps are installed. A variable so tests do
+// not see the machine's own apps.
+var ApplicationsDirs = func() []string {
+	return []string{"/Applications", filepath.Join(home(), "Applications")}
 }
 
 // Names lists the supported hosts in display order.
@@ -219,6 +228,15 @@ func Installed(name string) bool {
 	h, ok := lookup(name)
 	if !ok {
 		return false
+	}
+	if runtime.GOOS == "darwin" {
+		for _, dir := range ApplicationsDirs() {
+			for _, app := range h.macApps {
+				if info, err := os.Stat(filepath.Join(dir, app)); err == nil && info.IsDir() {
+					return true
+				}
+			}
+		}
 	}
 	ours := map[string]bool{
 		filepath.Clean(CodexHooksPath()):     true,

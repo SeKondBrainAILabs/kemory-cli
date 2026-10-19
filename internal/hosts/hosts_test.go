@@ -19,6 +19,9 @@ func setHome(t *testing.T) string {
 	t.Setenv("UV", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("CODEX_HOME", "")
+	apps := ApplicationsDirs
+	ApplicationsDirs = func() []string { return []string{filepath.Join(dir, "Applications")} }
+	t.Cleanup(func() { ApplicationsDirs = apps })
 	return dir
 }
 
@@ -203,5 +206,21 @@ func TestFilesAnOlderKemoryLeftDoNotMakeAnAppInstalled(t *testing.T) {
 		`{"mcpServers": {"kemory": {"command": "kemory"}, "github": {"command": "gh"}}}`)
 	if !Installed("continue") {
 		t.Fatal("a config with the user's own servers is the app's")
+	}
+}
+
+func TestAMacAppBundleMeansInstalledBeforeItsFirstLaunch(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("app bundles are a macOS thing")
+	}
+	home := setHome(t)
+	if Installed("cursor") {
+		t.Fatal("nothing installed yet")
+	}
+	if err := os.MkdirAll(filepath.Join(home, "Applications", "Cursor.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !Installed("cursor") {
+		t.Fatal("Cursor.app means Cursor is installed")
 	}
 }

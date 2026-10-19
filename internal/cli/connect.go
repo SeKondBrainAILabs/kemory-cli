@@ -188,7 +188,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		written[h] = true
 		return hostResult{
 			host: h, detail: pluginInstalled(h), ok: true,
-			short: "Kemory plugin installed", next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
+			short: via(h, "plugin") + " installed", next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
 		}
 	}
 	path := hosts.ResolveConfig(h)
@@ -201,7 +201,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		return hostResult{host: h, detail: note, short: note}
 	}
 	written[h] = true
-	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: "memory tools added"}
+	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: levelTools}
 	// Warp picks up its config on save.
 	r.restart = h != "warp"
 	if pluginErr != nil {
@@ -212,10 +212,10 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 	switch {
 	case err != nil:
 		r.detail = joinNote(r.detail, "memory hooks not added: "+err.Error())
-		r.short += " · automatic memory not added"
+		r.short += " · could not add full memory"
 	case hooks != "":
 		r.detail = joinNote(r.detail, hooks)
-		r.short = strings.Replace(r.short, "memory tools added", "memory tools + automatic memory added", 1)
+		r.short = strings.Replace(r.short, levelTools, levelFull, 1)
 		if memoryHooks[h].approve != "" {
 			r.restart = false
 			r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"

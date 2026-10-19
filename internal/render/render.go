@@ -336,6 +336,10 @@ const (
 
 const checkLabelWidth = 26
 
+// styledLabelWidth fits the styled report's labels, product names and the
+// like, which are shorter than the plain ones.
+const styledLabelWidth = 18
+
 // Check prints one "PASS  label  detail" line. On a terminal, a long detail
 // wraps under the detail column instead of at column 0, and never inside a
 // `backticked` command, which would paste as two broken commands.
@@ -378,12 +382,12 @@ func styledCheck(w io.Writer, label string, status Status, detail string) {
 	case Fail:
 		mark = tintOrange.Render("✗")
 	}
-	head := indent(w) + mark + " " + tintBold.Render(padRight(label, checkLabelWidth))
+	head := indent(w) + mark + " " + tintBold.Render(padRight(label, styledLabelWidth))
 	if detail == "" {
 		fmt.Fprintln(w, head)
 		return
 	}
-	margin := len(indent(w)) + 1 + 1 + checkLabelWidth + 2
+	margin := len(indent(w)) + 1 + 1 + styledLabelWidth + 2
 	lines := []string{detail}
 	if width := terminalWidth(w); width-margin >= 30 {
 		lines = WrapKeepingCommands(detail, width-margin)

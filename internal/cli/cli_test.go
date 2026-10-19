@@ -47,6 +47,10 @@ func setHome(t *testing.T) string {
 		return nil, nil
 	}
 	t.Cleanup(func() { lookPath, runTool = look, runner })
+	// Nor sees the machine's own macOS apps.
+	appDirs := hosts.ApplicationsDirs
+	hosts.ApplicationsDirs = func() []string { return []string{filepath.Join(dir, "Applications")} }
+	t.Cleanup(func() { hosts.ApplicationsDirs = appDirs })
 	// No test runs a real package manager either.
 	upgrader := runUpgrade
 	runUpgrade = func(argv []string) error { t.Fatalf("a test ran %v", argv); return nil }
