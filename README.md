@@ -179,7 +179,7 @@ Scripts and agents can act on why a command failed:
 | `KEMORY_OUTPUT` | `text` or `json`, like `--output` |
 | `NO_COLOR` | Disable colour |
 | `KEMORY_ACCESSIBLE=1` | Plain numbered prompts instead of the arrow-key picker, for screen readers |
-| `KEMORY_ICONS` | `1` draws client logos in any terminal (Warp, tmux), `0` never; by default only iTerm2, WezTerm, kitty and Ghostty get them |
+| `KEMORY_ICONS=1` | Draw client marks and the SeKondBrain mark as images in `kemory connect` (kitty's protocol in kitty and Ghostty, iTerm2's elsewhere). Off by default: a terminal that refuses images prints them as text |
 | `KEMORY_HEADLESS=1` | Never try to open a browser |
 
 Sign-ins are stored per environment in `~/.kemory/credentials-<env>`. Extra

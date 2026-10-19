@@ -24,26 +24,20 @@ const (
 	kittyImages
 )
 
-// detectImages picks the protocol from the environment. Only terminals known
-// to draw an image in its own cells get logos: iTerm2 and WezTerm (iTerm2's
-// protocol), and kitty and Ghostty (kitty's). Warp draws images over the
-// text, and tmux would need passthrough, so they get logos only with
-// KEMORY_ICONS=1; KEMORY_ICONS=0 turns them off everywhere.
+// detectImages picks the protocol, only when KEMORY_ICONS=1 asks for logos:
+// kitty's in kitty and Ghostty, iTerm2's everywhere else. A terminal that
+// refuses an image prints its data as a wall of text, and a terminal's name
+// does not say whether it will (iTerm2 3.5 has been seen refusing), so
+// logos are never on by default.
 func detectImages(getenv func(string) string) imageProtocol {
-	force := getenv("KEMORY_ICONS")
-	if force == "0" {
+	if getenv("KEMORY_ICONS") != "1" {
 		return noImages
 	}
-	term, program := getenv("TERM"), getenv("TERM_PROGRAM")
-	switch {
-	case getenv("TMUX") != "" && force != "1":
-		return noImages
-	case term == "xterm-kitty" || getenv("KITTY_WINDOW_ID") != "" || term == "xterm-ghostty" || program == "ghostty":
+	term := getenv("TERM")
+	if term == "xterm-kitty" || getenv("KITTY_WINDOW_ID") != "" || term == "xterm-ghostty" || getenv("TERM_PROGRAM") == "ghostty" {
 		return kittyImages
-	case program == "iTerm.app" || program == "WezTerm" || force == "1":
-		return itermImages
 	}
-	return noImages
+	return itermImages
 }
 
 // images is this terminal's protocol. A variable so tests can choose.

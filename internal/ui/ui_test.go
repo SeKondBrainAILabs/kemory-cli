@@ -48,20 +48,18 @@ func TestEveryClientHasANameTileAndLogo(t *testing.T) {
 	}
 }
 
-func TestImagesOnlyWhereTheTerminalDrawsThem(t *testing.T) {
+func TestImagesOnlyWhenAskedFor(t *testing.T) {
 	cases := []struct {
 		env  map[string]string
 		want imageProtocol
 	}{
-		{map[string]string{"TERM_PROGRAM": "iTerm.app"}, itermImages},
-		{map[string]string{"TERM_PROGRAM": "WezTerm"}, itermImages},
-		{map[string]string{"TERM": "xterm-kitty"}, kittyImages},
-		{map[string]string{"TERM": "xterm-ghostty"}, kittyImages},
-		{map[string]string{"TERM_PROGRAM": "Apple_Terminal"}, noImages},
+		{map[string]string{"TERM_PROGRAM": "iTerm.app"}, noImages},
+		{map[string]string{"TERM": "xterm-kitty"}, noImages},
 		{map[string]string{"TERM_PROGRAM": "WarpTerminal"}, noImages},
 		{map[string]string{"TERM_PROGRAM": "WarpTerminal", "KEMORY_ICONS": "1"}, itermImages},
-		{map[string]string{"TERM_PROGRAM": "iTerm.app", "TMUX": "/tmp/t"}, noImages},
-		{map[string]string{"TERM_PROGRAM": "iTerm.app", "KEMORY_ICONS": "0"}, noImages},
+		{map[string]string{"TERM_PROGRAM": "iTerm.app", "KEMORY_ICONS": "1"}, itermImages},
+		{map[string]string{"TERM": "xterm-kitty", "KEMORY_ICONS": "1"}, kittyImages},
+		{map[string]string{"TERM": "xterm-ghostty", "KEMORY_ICONS": "1"}, kittyImages},
 	}
 	for _, c := range cases {
 		if got := detectImages(func(k string) string { return c.env[k] }); got != c.want {
