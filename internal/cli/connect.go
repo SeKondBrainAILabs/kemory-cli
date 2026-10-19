@@ -201,7 +201,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		return hostResult{host: h, detail: note, short: note}
 	}
 	written[h] = true
-	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: "MCP entry added"}
+	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: "memory tools added"}
 	// Warp picks up its config on save.
 	r.restart = h != "warp"
 	if pluginErr != nil {
@@ -212,10 +212,10 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 	switch {
 	case err != nil:
 		r.detail = joinNote(r.detail, "memory hooks not added: "+err.Error())
-		r.short += " · memory hooks not added"
+		r.short += " · automatic memory not added"
 	case hooks != "":
 		r.detail = joinNote(r.detail, hooks)
-		r.short += " · memory hooks added"
+		r.short = strings.Replace(r.short, "memory tools added", "memory tools + automatic memory added", 1)
 		if memoryHooks[h].approve != "" {
 			r.restart = false
 			r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"

@@ -28,6 +28,9 @@ type host struct {
 	typed bool
 	// local hosts (OpenCode) take {"type": "local", "command": [...]}.
 	local bool
+	// discontinued hosts are no longer offered, only kept working where
+	// they are installed.
+	discontinued bool
 	// paths returns the candidate config files, most likely first.
 	paths func() []string
 	// appDirs are directories the host app itself creates. Nil means the
@@ -104,7 +107,8 @@ var registry = []host{
 		// Continue reads Claude Desktop-style JSON files in ~/.continue/mcpServers
 		// whether the user's config is config.yaml or the older config.json, so
 		// kemory owns a file there instead of editing either.
-		name: "continue", key: "mcpServers",
+		// Continue was discontinued in 2026 after Cursor acquired it.
+		name: "continue", key: "mcpServers", discontinued: true,
 		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
 	},
 	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json")},
@@ -115,6 +119,13 @@ var registry = []host{
 		},
 		appDirs: func() []string { return []string{openCodeDir(), filepath.Join(home(), ".local", "share", "opencode")} },
 	},
+}
+
+// Discontinued reports whether host is a product that no longer exists, so
+// kemory only keeps it working where it is installed.
+func Discontinued(name string) bool {
+	h, ok := lookup(name)
+	return ok && h.discontinued
 }
 
 // Names lists the supported hosts in display order.

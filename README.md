@@ -20,10 +20,10 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    uvx kemory connect   # or with uv
    ```
 
-   Your browser opens to sign in. kemory then lists the AI clients on this
-   machine with their Kemory status: move with the arrow keys, toggle with
-   space, and Enter connects the ticked ones (every ready client starts
-   ticked). Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
+   Your browser opens to sign in. kemory then shows the AI clients on this
+   machine that already have Kemory, and asks which of the others to connect:
+   move with the arrow keys, toggle with space, and Enter connects the ticked
+   ones (all start ticked). Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
    Gemini CLI, OpenCode and VS Code an MCP entry plus automatic memory; the
    others an MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
    restart.
@@ -120,7 +120,7 @@ everything else in the file is left as it was.
 | `cline` | Cline | the VS Code extension's `cline_mcp_settings.json`, or `~/.cline/data/settings/cline_mcp_settings.json` |
 | `kiro` | Kiro | `~/.kiro/settings/mcp.json` |
 | `grok` | Grok CLI | `~/.grok/config.toml` |
-| `continue` | Continue | `~/.continue/mcpServers/kemory.json` |
+| `continue` | Continue (discontinued in 2026; kept working where it is still installed) | `~/.continue/mcpServers/kemory.json` |
 | `warp` | Warp | `~/.warp/.mcp.json` |
 | `opencode` | OpenCode | `~/.config/opencode/opencode.json`, plus the memory plugin in `~/.config/opencode/plugins/kemory.js` |
 

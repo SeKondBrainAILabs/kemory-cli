@@ -27,36 +27,38 @@ var (
 	Muted  = lipgloss.AdaptiveColor{Light: "245", Dark: "243"}
 )
 
-var banner = []string{
-	"██╗  ██╗███████╗███╗   ███╗ ██████╗ ██████╗ ██╗   ██╗",
-	"██║ ██╔╝██╔════╝████╗ ████║██╔═══██╗██╔══██╗╚██╗ ██╔╝",
-	"█████╔╝ █████╗  ██╔████╔██║██║   ██║██████╔╝ ╚████╔╝ ",
-	"██╔═██╗ ██╔══╝  ██║╚██╔╝██║██║   ██║██╔══██╗  ╚██╔╝  ",
-	"██║  ██╗███████╗██║ ╚═╝ ██║╚██████╔╝██║  ██║   ██║   ",
-	"╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ",
-}
+// MinWidth is the narrowest terminal the header with the mark is drawn in;
+// below it the one-line title is used.
+const MinWidth = 60
 
-// bannerWidth is the banner's width in columns.
-const bannerWidth = 53
-
-// MinWidth is the narrowest terminal the full banner is drawn in.
-const MinWidth = bannerWidth + 4
-
-// Banner is the KEMORY wordmark in a blue-to-purple-to-pink gradient, with
-// the tagline under it.
-func Banner() string {
-	stops := []rgb{hex(Blue), hex(Purple), hex(Pink)}
+// Header is the SeKondBrain mark with the kemory name, tagline and maker
+// beside it.
+func Header() string {
+	text := map[int]string{
+		2: wordmark("kemory"),
+		3: lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents"),
+		4: lipgloss.NewStyle().Foreground(Muted).Render("by SeKondBrain"),
+	}
 	var b strings.Builder
-	for _, line := range banner {
-		b.WriteString(" ")
-		runes := []rune(line)
-		for i, r := range runes {
-			c := gradient(stops, float64(i)/float64(len(runes)-1))
-			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(c.String())).Render(string(r)))
+	for i, line := range markLines() {
+		b.WriteString(" " + line)
+		if t := text[i]; t != "" {
+			b.WriteString("   " + t)
 		}
 		b.WriteString("\n")
 	}
-	b.WriteString(" " + lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents") + "\n")
+	return b.String()
+}
+
+// wordmark is word in bold, in a blue-to-purple-to-pink gradient.
+func wordmark(word string) string {
+	stops := []rgb{hex(Blue), hex(Purple), hex(Pink)}
+	runes := []rune(word)
+	var b strings.Builder
+	for i, r := range runes {
+		c := gradient(stops, float64(i)/float64(len(runes)-1))
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(c.String())).Render(string(r)))
+	}
 	return b.String()
 }
 
@@ -80,23 +82,25 @@ var (
 	white  = lipgloss.Color("#FFFFFF")
 )
 
-// clients is how each host is shown: its product name and an icon tile in
-// the product's colour.
+// clients is how each host is shown: its product name and a tile in the
+// product's colour holding its mark where a character draws it (Claude's
+// asterisk, Gemini's sparkle) and a two-letter monogram everywhere else.
+// Terminals cannot draw the real logos reliably.
 var clients = map[string]client{
 	"claude-code":    {"Claude Code", "✻", lipgloss.Color("#D97757"), white},
 	"claude-desktop": {"Claude Desktop", "✻", lipgloss.Color("#C15F3C"), white},
-	"codex":          {"Codex", "◎", monoBg, monoFg},
-	"cursor":         {"Cursor", "◆", monoBg, monoFg},
-	"vscode":         {"VS Code", "◈", lipgloss.Color("#007ACC"), white},
+	"codex":          {"Codex", "Cx", monoBg, monoFg},
+	"cursor":         {"Cursor", "Cu", monoBg, monoFg},
+	"vscode":         {"VS Code", "VS", lipgloss.Color("#007ACC"), white},
 	"gemini-cli":     {"Gemini CLI", "✦", lipgloss.Color("#4285F4"), white},
-	"antigravity":    {"Antigravity", "▲", lipgloss.Color("#A142F4"), white},
-	"windsurf":       {"Windsurf", "≋", lipgloss.Color("#0B9A8D"), white},
-	"cline":          {"Cline", "◉", monoBg, monoFg},
-	"kiro":           {"Kiro", "◇", lipgloss.Color("#9046FF"), white},
-	"grok":           {"Grok", "✕", monoBg, monoFg},
-	"continue":       {"Continue", "▶", lipgloss.Color("#E8A33D"), lipgloss.Color("#000000")},
-	"warp":           {"Warp", "»", lipgloss.Color("#01A4FF"), white},
-	"opencode":       {"OpenCode", "▣", monoBg, monoFg},
+	"antigravity":    {"Antigravity", "Ag", lipgloss.Color("#A142F4"), white},
+	"windsurf":       {"Windsurf", "Ws", lipgloss.Color("#0B9A8D"), white},
+	"cline":          {"Cline", "Cl", monoBg, monoFg},
+	"kiro":           {"Kiro", "Ki", lipgloss.Color("#9046FF"), white},
+	"grok":           {"Grok", "Gr", monoBg, monoFg},
+	"continue":       {"Continue", "Co", lipgloss.Color("#E8A33D"), lipgloss.Color("#000000")},
+	"warp":           {"Warp", "Wa", lipgloss.Color("#01A4FF"), white},
+	"opencode":       {"OpenCode", "OC", monoBg, monoFg},
 }
 
 // Name is the product name of a host.
@@ -107,13 +111,13 @@ func Name(host string) string {
 	return host
 }
 
-// Icon is a host's coloured tile, three columns wide.
+// Icon is a host's coloured tile, four columns wide.
 func Icon(host string) string {
 	c, ok := clients[host]
 	if !ok {
-		return lipgloss.NewStyle().Background(Purple).Foreground(white).Render(" • ")
+		c = client{glyph: "•", bg: Purple, fg: white}
 	}
-	return lipgloss.NewStyle().Background(c.bg).Foreground(c.fg).Bold(true).Render(" " + c.glyph + " ")
+	return lipgloss.NewStyle().Background(c.bg).Foreground(c.fg).Bold(true).Width(4).Align(lipgloss.Center).Render(c.glyph)
 }
 
 // Label is a host's icon, name and status for a list row.
@@ -135,6 +139,18 @@ func Result(host string, ok bool, detail string) string {
 	}
 	return " " + mark + " " + Icon(host) + " " + lipgloss.NewStyle().Bold(true).Width(16).Render(Name(host)) +
 		lipgloss.NewStyle().Foreground(Muted).Render(detail)
+}
+
+// Connected is a row for a host that already has Kemory, shown apart from
+// the choices.
+func Connected(host, status string) string {
+	return " " + check + " " + Icon(host) + " " + lipgloss.NewStyle().Width(16).Render(Name(host)) +
+		lipgloss.NewStyle().Foreground(Muted).Render(status)
+}
+
+// Heading is a small section heading.
+func Heading(text string) string {
+	return " " + lipgloss.NewStyle().Foreground(Muted).Bold(true).Render(text)
 }
 
 // Done is a top-level success line.

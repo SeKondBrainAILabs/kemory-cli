@@ -42,6 +42,9 @@ func TestConnectListsClientsAndConnectsTheReadyOnesOnEnter(t *testing.T) {
 			t.Fatalf("missing %q in:\n%s\n%s", want, out, errOut)
 		}
 	}
+	if strings.Contains(out+errOut, "continue") {
+		t.Fatalf("a discontinued client is offered:\n%s\n%s", out, errOut)
+	}
 	if mcpServers(t, filepath.Join(home, ".cursor", "mcp.json"))["kemory"] == nil {
 		t.Fatal("Enter must connect every ready client")
 	}

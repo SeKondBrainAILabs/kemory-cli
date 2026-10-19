@@ -182,3 +182,11 @@ func toStrings(v any) []string {
 	}
 	return out
 }
+
+func TestOnlyContinueIsDiscontinued(t *testing.T) {
+	for _, name := range Names {
+		if Discontinued(name) != (name == "continue") {
+			t.Fatalf("%s: discontinued = %v", name, Discontinued(name))
+		}
+	}
+}

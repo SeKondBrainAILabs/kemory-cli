@@ -59,14 +59,14 @@ func via(reason string) string {
 
 // readyStatus says, briefly, what connecting a ready host would install.
 func readyStatus(env, host string) string {
-	status := "MCP tools"
+	status := "adds memory tools"
 	switch {
 	case pluginTools[host] != "" && env == config.DefaultEnv:
 		if _, err := lookPath(pluginTools[host]); err == nil {
-			status = "Kemory plugin · automatic memory"
+			status = "adds the Kemory plugin: tools + automatic memory"
 		}
 	case memoryHooks[host].install != nil:
-		status = "MCP tools + automatic memory hooks"
+		status = "adds memory tools + automatic memory"
 	}
 	if hosts.RunningCheck(host) {
 		status += " · restarts the app"
@@ -89,21 +89,24 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 			rows = append(rows, pickRow{
 				h, "connected", reason + "; " + path +
 					" also has a duplicate entry, which `kemory doctor --fix` removes",
-				"connected · " + via(reason) + " · duplicate entry: run kemory doctor --fix",
+				via(reason) + " · duplicate entry: run kemory doctor --fix",
 			})
 		case reason != "":
-			rows = append(rows, pickRow{h, "connected", reason, "connected · " + via(reason)})
+			rows = append(rows, pickRow{h, "connected", reason, via(reason)})
 		case !hosts.Installed(h):
-			missing = append(missing, h)
+			// A discontinued client is only listed where it is still installed.
+			if !hosts.Discontinued(h) {
+				missing = append(missing, h)
+			}
 		case len(entries) > 0 && needsHooks(h):
 			rows = append(rows, pickRow{
 				h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")",
-				"MCP tools connected · add automatic memory hooks",
+				"adds automatic memory (memory tools already connected)",
 			})
 		case len(entries) > 0:
-			short := "connected · MCP tools"
+			short := "memory tools"
 			if _, ok := memoryHooks[h]; ok {
-				short = "connected · MCP tools + automatic memory"
+				short = "memory tools + automatic memory"
 			}
 			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path, short})
 		default:

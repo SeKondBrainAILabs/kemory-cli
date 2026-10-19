@@ -5,10 +5,15 @@ import (
 	"testing"
 )
 
-func TestBannerHasTheWordmarkAndTagline(t *testing.T) {
-	b := Banner()
-	if strings.Count(b, "\n") != len(banner)+1 || !strings.Contains(b, "persistent memory for your AI agents") {
-		t.Fatalf("banner:\n%s", b)
+func TestHeaderHasTheMarkNameTaglineAndMaker(t *testing.T) {
+	h := Header()
+	if strings.Count(h, "\n") != markRows {
+		t.Fatalf("the header must be the mark's %d rows:\n%s", markRows, h)
+	}
+	for _, want := range []string{"persistent memory for your AI agents", "by SeKondBrain", "▀", "▄"} {
+		if !strings.Contains(h, want) {
+			t.Fatalf("missing %q in:\n%s", want, h)
+		}
 	}
 }
 

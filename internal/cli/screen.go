@@ -58,7 +58,7 @@ func (s *screen) banner() {
 	}
 	render.Echo("")
 	if s.width >= ui.MinWidth {
-		render.Echo(ui.Banner())
+		render.Echo(ui.Header())
 	} else {
 		render.Echo(" " + ui.Title() + "\n")
 	}
@@ -122,27 +122,33 @@ func plural(n int) string {
 	return "s"
 }
 
-// pickFancy asks which hosts to connect with an arrow-key multi-select.
+// pickFancy lists the hosts that already have Kemory, then asks which of the
+// others to connect with an arrow-key multi-select, every one ticked.
 func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	var options []huh.Option[string]
-	var ready int
+	var connected []pickRow
 	for _, r := range rows {
-		options = append(options, huh.NewOption(ui.Label(r.host, r.short), r.host).Selected(r.state == "ready"))
 		if r.state == "ready" {
-			ready++
+			options = append(options, huh.NewOption(ui.Label(r.host, r.short), r.host).Selected(true))
+		} else {
+			connected = append(connected, r)
 		}
 	}
-	if ready == 0 {
+	if len(connected) > 0 {
+		render.Echo("")
+		render.Echo(ui.Heading("Already connected"))
+		for _, r := range connected {
+			render.Echo(ui.Connected(r.host, r.short))
+		}
+	}
+	render.Echo("")
+	if len(options) == 0 {
 		render.Echo(ui.Done("Every AI client found here is already connected."))
 		return nil, nil
 	}
 	description := ""
-	if len(missing) > 0 {
-		names := make([]string, len(missing))
-		for i, m := range missing {
-			names[i] = ui.Name(m)
-		}
-		description = "Not found here: " + strings.Join(names, ", ")
+	if n := len(missing); n > 0 {
+		description = fmt.Sprintf("%d more supported client%s not installed here", n, map[bool]string{true: " is", false: "s are"}[n == 1])
 	}
 	var picked []string
 	field := huh.NewMultiSelect[string]().
@@ -153,7 +159,14 @@ func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	keys := huh.NewDefaultKeyMap()
 	keys.MultiSelect.Toggle = key.NewBinding(key.WithKeys(" ", "x"), key.WithHelp("space", "toggle"))
 	keys.MultiSelect.Filter = key.NewBinding(key.WithDisabled())
-	err := huh.NewForm(huh.NewGroup(field)).WithTheme(ui.Theme()).WithKeyMap(keys).WithOutput(render.Err).Run()
+	// The form's height is set, not taken from the terminal: some terminals
+	// (Warp) report a short height at first, and huh would keep the list
+	// that short, scrolling the first clients out of sight.
+	height := 1 + len(options) + 1 // title, options and the help below them
+	if description != "" {
+		height++
+	}
+	err := huh.NewForm(huh.NewGroup(field)).WithTheme(ui.Theme()).WithKeyMap(keys).WithOutput(render.Err).WithHeight(height).Run()
 	if errors.Is(err, huh.ErrUserAborted) {
 		return nil, exits.New("Cancelled; nothing was changed.", exits.Failure)
 	}
