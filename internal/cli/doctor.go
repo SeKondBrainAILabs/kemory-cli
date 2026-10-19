@@ -142,14 +142,14 @@ func (d *doctor) run() error {
 		if fixHint {
 			render.Echo(ui.Step("Run " + ui.Bold("kemory doctor --fix") + " to connect every installed client and clean up the rest"))
 		}
-		tally := fmt.Sprintf("%d passed", count[string(render.Pass)])
-		if n := count[string(render.Skip)]; n > 0 {
-			tally += fmt.Sprintf(", %d skipped", n)
-		}
-		if n := count[string(render.Fail)]; n > 0 {
-			render.Echo(ui.Failed(fmt.Sprintf("%d failed, %s; each failure says what to do", n, tally)))
-		} else {
-			render.Echo(ui.Done(tally))
+		// The verdict, not a count: whether anything needs the user.
+		switch failed, skipped := count[string(render.Fail)], count[string(render.Skip)]; {
+		case failed > 0:
+			render.Echo(ui.Failed(fmt.Sprintf("%d problem%s: each ✗ above says what to do", failed, plural(failed))))
+		case skipped > 0:
+			render.Echo(ui.Done("Everything works" + ui.Dim(fmt.Sprintf(" · %d check%s skipped", skipped, plural(skipped)))))
+		default:
+			render.Echo(ui.Done("Everything works"))
 		}
 		render.Echo("")
 		return nil
