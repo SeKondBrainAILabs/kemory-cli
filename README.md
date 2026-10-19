@@ -68,10 +68,19 @@ carries only the JSON payload), `--quiet`, `--no-color` and `--env <name>`.
 
 ## MCP clients
 
-`kemory connect --host <name>` and `kemory mcp install --host <name>` write the
-entry for one client, and `--host all` writes it for every client installed on
-this machine. The entry only starts `kemory mcp serve`; no token or key is
-written into the client's config. Everything else in the file is left as it was.
+`kemory connect --host <name>` and `kemory mcp install --host <name>` connect
+one client, and `--host all` connects every client installed on this machine.
+
+For Claude Code and Grok Build they install the
+[Kemory plugin](https://github.com/SeKondBrainAILabs/kemory-plugin) through the
+client's own `claude` or `grok` command. Its hooks save each session to Kemory,
+and in Claude Code also load your memory when a session starts. Without that
+command, or for an environment other than prod, they write the MCP entry
+instead.
+
+For every other client they write an MCP entry. The entry only starts
+`kemory mcp serve`; no token or key is written into the client's config, and
+everything else in the file is left as it was.
 
 | `--host` | Client | Config file (macOS and Linux) |
 |---|---|---|
@@ -101,12 +110,12 @@ twice, which costs context in every session.
 | Client | Connect it with |
 |---|---|
 | claude.ai, Claude Desktop and Claude mobile | The claude.ai connector, added from the Kemory dashboard |
-| Claude Code | The Kemory plugin, which also brings the hooks that inject your context |
+| Claude Code and Grok Build | The Kemory plugin, which `kemory connect` installs |
 | Everything else in the table above | `kemory connect --host <name>` |
 
 `connect` and `mcp install` write nothing for a client that already has
-Kemory: Claude Code with the Kemory plugin enabled, or Claude Desktop when your
-account has a claude.ai connector in use. `kemory doctor` reports a kemory entry
+Kemory: Claude Code or Grok Build with the Kemory plugin enabled, or Claude
+Desktop when your account has a claude.ai connector in use. `kemory doctor` reports a kemory entry
 that duplicates either one, and `kemory doctor --fix` removes it.
 
 Claude Desktop rewrites its config file from memory while it runs, which drops

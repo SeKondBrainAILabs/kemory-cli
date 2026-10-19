@@ -116,6 +116,12 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 			lines = append(lines, hostResult{host: h, detail: "already " + reason + " — nothing written", ok: true})
 			continue
 		}
+		plugin, fallback := tryPlugin(g.env, h)
+		if plugin {
+			written[h] = true
+			lines = append(lines, hostResult{host: h, detail: pluginInstalled(h), ok: true})
+			continue
+		}
 		path := hosts.ResolveConfig(h)
 		done, note, err := withAppClosed(h, false, func() error { return hosts.WriteEntry(h, path, name, launch) })
 		switch {
@@ -125,7 +131,7 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 			lines = append(lines, hostResult{host: h, detail: note})
 		default:
 			written[h] = true
-			lines = append(lines, hostResult{host: h, detail: joinNote(path, note), ok: true})
+			lines = append(lines, hostResult{host: h, detail: joinNote(joinNote(path, note), fallback), ok: true})
 		}
 	}
 	lines = append(lines, results...)

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,6 +38,14 @@ func setHome(t *testing.T) string {
 	t.Cleanup(func() {
 		hosts.RunningCheck, hosts.InsideApp, hosts.QuitApp, hosts.OpenApp = running, inside, quit, open
 	})
+	// No test runs a real `claude` or `grok`: by default neither is installed.
+	look, runner := lookPath, runTool
+	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	runTool = func(name string, args ...string) ([]byte, error) {
+		t.Fatalf("a test ran %s %v", name, args)
+		return nil, nil
+	}
+	t.Cleanup(func() { lookPath, runTool = look, runner })
 	// MCP host configs on Windows live under %APPDATA%.
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	// Tests never reach a real Kemory: anything not pointed at a fake server
