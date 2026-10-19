@@ -131,14 +131,15 @@ func Dim(text string) string { return dim.Render(text) }
 // Bold is emphasised text.
 func Bold(text string) string { return bold.Render(text) }
 
-// Detected is a row of the detected-clients list: its state, name and what
-// Kemory gives it.
+// Detected is a row of the detected-clients list: a green dot when the
+// client already has Kemory, a grey ring when it does not yet, then its name
+// and what Kemory gives it or would add.
 func Detected(host string, ready bool, status string) string {
-	tag := lipgloss.NewStyle().Foreground(Muted).Width(12).Render("[connected]")
+	dot := lipgloss.NewStyle().Foreground(Mint).Render("●")
 	if ready {
-		tag = lipgloss.NewStyle().Foreground(Mint).Width(12).Render("[ready]")
+		dot = dim.Render("○")
 	}
-	return tag + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
+	return dot + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
 }
 
 // Option is a host as a choice in a prompt.
@@ -173,7 +174,7 @@ func Theme() *huh.Theme {
 		PaddingLeft(2)
 	t.Focused.Title = lipgloss.NewStyle().Bold(true)
 	t.Focused.Description = dim
-	t.Focused.SelectSelector = lipgloss.NewStyle().Foreground(Pink).SetString("● ")
+	t.Focused.SelectSelector = lipgloss.NewStyle().Foreground(Pink).SetString("› ")
 	t.Focused.Option = dim
 	t.Focused.SelectedOption = lipgloss.NewStyle()
 	t.Focused.MultiSelectSelector = lipgloss.NewStyle().Foreground(Pink).SetString("› ")
