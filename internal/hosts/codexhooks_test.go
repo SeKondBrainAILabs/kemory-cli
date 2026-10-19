@@ -118,3 +118,34 @@ func TestGeminiHooksShareTheSettingsFileWithItsMCPServers(t *testing.T) {
 		t.Fatal("each agent's hooks are its own")
 	}
 }
+
+func TestCopilotHooksFileServesVSCodeAndTheCLI(t *testing.T) {
+	home := setHome(t)
+	t.Setenv("COPILOT_HOME", "")
+	path, err := InstallCopilotHooks(LaunchFor("prod"))
+	if err != nil || path != filepath.Join(home, ".copilot", "hooks", "kemory.json") {
+		t.Fatalf("%s %v", path, err)
+	}
+	var f copilotHooksFile
+	if err := json.Unmarshal([]byte(read(t, path)), &f); err != nil || f.Version != 1 {
+		t.Fatalf("%+v %v", f, err)
+	}
+	want := map[string]string{
+		"sessionStart": "kemory --env prod hook session-start --agent copilot",
+		"agentStop":    "kemory --env prod hook capture --agent copilot --event Stop",
+		"preCompact":   "kemory --env prod hook capture --agent copilot --event PreCompact",
+		"sessionEnd":   "kemory --env prod hook capture --agent copilot --event SessionEnd",
+	}
+	for event, command := range want {
+		if h := f.Hooks[event]; len(h) != 1 || h[0].Command != command || h[0].TimeoutSec != 10 {
+			t.Fatalf("%s: %+v", event, h)
+		}
+	}
+	if !CopilotHooksInstalled() {
+		t.Fatal("installed hooks not detected")
+	}
+	t.Setenv("COPILOT_HOME", filepath.Join(home, "elsewhere"))
+	if CopilotHooksInstalled() || !strings.HasPrefix(CopilotHooksPath(), filepath.Join(home, "elsewhere")) {
+		t.Fatal("COPILOT_HOME moves the hooks")
+	}
+}

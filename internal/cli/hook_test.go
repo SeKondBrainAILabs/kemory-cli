@@ -137,3 +137,44 @@ func TestHookCaptureCanBeTurnedOff(t *testing.T) {
 		t.Fatal("KEMORY_AUTO_CAPTURE=0 must turn capture off")
 	}
 }
+
+func TestCopilotSessionStartAnswersEachHarnessInItsShape(t *testing.T) {
+	setHome(t)
+	newFakeVault(t, map[string]func(http.ResponseWriter){"/api/v1/user/context": jsonReply(200, contextReply)})
+
+	// The Copilot CLI sends camelCase and reads a top-level additionalContext.
+	withStdin(t, `{"sessionId": "c1", "timestamp": 1, "cwd": "/w", "source": "new"}`)
+	_, out, _ := run(t, "hook", "session-start", "--agent", "copilot")
+	var cli map[string]any
+	if json.Unmarshal([]byte(out), &cli) != nil || !strings.Contains(cli["additionalContext"].(string), "Prefers Go.") {
+		t.Fatalf("copilot cli: %q", out)
+	}
+
+	// VS Code sends Claude Code's payload and reads hookSpecificOutput.
+	withStdin(t, `{"session_id": "v1", "hook_event_name": "SessionStart", "source": "new"}`)
+	_, out, _ = run(t, "hook", "session-start", "--agent", "copilot")
+	var vscode struct {
+		HookSpecificOutput struct {
+			HookEventName     string `json:"hookEventName"`
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if json.Unmarshal([]byte(out), &vscode) != nil || vscode.HookSpecificOutput.HookEventName != "SessionStart" ||
+		!strings.Contains(vscode.HookSpecificOutput.AdditionalContext, "Prefers Go.") {
+		t.Fatalf("vscode: %q", out)
+	}
+}
+
+func TestCopilotCLISessionEndFindsItsTranscript(t *testing.T) {
+	v, home, _ := captureSetup(t, 201)
+	events := filepath.Join(home, ".copilot", "session-state", "c7", "events.jsonl")
+	writeFile(t, events, `{"type": "session.start", "data": {}}`+"\n"+
+		`{"type": "user.message", "data": {"content": "fix the build", "attachments": []}, "id": "1"}`+"\n"+
+		`{"type": "assistant.message", "data": {"content": "done"}}`+"\n")
+	withStdin(t, `{"sessionId": "c7", "timestamp": 1, "cwd": "/w", "reason": "complete"}`)
+	run(t, "hook", "capture", "--agent", "copilot", "--event", "SessionEnd")
+	content, _ := v.bodies["/api/v1/memories"]["content"].(string)
+	if !strings.Contains(content, "- fix the build") || strings.Contains(content, "done") {
+		t.Fatalf("content: %q", content)
+	}
+}

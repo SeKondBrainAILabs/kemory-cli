@@ -25,7 +25,7 @@ func setHome(t *testing.T) string {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
-	for _, k := range []string{"KEMORY_ENV", "KEMORY_OUTPUT", "NO_COLOR", "KEMORY_API_KEY", "KEMORY_LAUNCHER", "UV", "XDG_CONFIG_HOME", "CODEX_HOME"} {
+	for _, k := range []string{"KEMORY_ENV", "KEMORY_OUTPUT", "NO_COLOR", "KEMORY_API_KEY", "KEMORY_LAUNCHER", "UV", "XDG_CONFIG_HOME", "CODEX_HOME", "COPILOT_HOME"} {
 		t.Setenv(k, "")
 	}
 	// Whether Claude Desktop is open on the machine running the tests must not

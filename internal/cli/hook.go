@@ -14,6 +14,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/api"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hook"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
 )
 
@@ -23,7 +24,7 @@ import (
 // rather than hold the session up.
 
 // hookAgents are the agents whose payload and output shapes kemory knows.
-var hookAgents = []string{"claude-code", "codex", "cursor", "gemini-cli", "grok", "opencode", "text"}
+var hookAgents = []string{"claude-code", "codex", "copilot", "cursor", "gemini-cli", "grok", "opencode", "text"}
 
 // hookDeadline is how long a hook may take, KEMORY_HOOK_TIMEOUT seconds or 2.
 func hookDeadline() time.Duration {
@@ -94,9 +95,15 @@ func newHookSessionStartCmd(g *globals) *cobra.Command {
 				return nil
 			}
 			var source struct {
-				Source string `json:"source"`
+				Source        string `json:"source"`
+				HookEventName string `json:"hook_event_name"`
 			}
 			_ = json.Unmarshal(hookPayload(), &source)
+			shape := agent
+			if agent == "copilot" && source.HookEventName != "" {
+				// VS Code runs Copilot hooks with Claude Code's payload and output.
+				shape = "claude-code"
+			}
 			var out []byte
 			finished := withDeadline(func() {
 				creds, err := auth.ValidCredentials(g.env, false)
@@ -109,7 +116,7 @@ func newHookSessionStartCmd(g *globals) *cobra.Command {
 					hookDebug("context request failed: %v (status %d)", err, respStatus(resp))
 					return
 				}
-				out, err = hook.Output(agent, hook.BuildContext(resp.Body, source.Source == "compact"))
+				out, err = hook.Output(shape, hook.BuildContext(resp.Body, source.Source == "compact"))
 				if err != nil {
 					out = nil
 				}
@@ -147,6 +154,10 @@ func newHookCaptureCmd(g *globals) *cobra.Command {
 			}
 			if event != "" {
 				e.Name = event
+			}
+			if e.TranscriptPath == "" && agent == "copilot" {
+				// The Copilot CLI names no transcript at session end.
+				e.TranscriptPath = hook.CopilotTranscript(hosts.CopilotHome(), e.SessionID)
 			}
 			withDeadline(func() { capture(g.env, agent, e) })
 			return nil

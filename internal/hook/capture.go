@@ -91,6 +91,10 @@ func UserTurns(path string) ([]string, error) {
 		}
 		var content any
 		switch {
+		case line["type"] == "user.message":
+			// Copilot: {"type":"user.message","data":{"content":…}}.
+			data, _ := line["data"].(map[string]any)
+			content = data["content"]
 		case line["type"] == "response_item":
 			payload, _ := line["payload"].(map[string]any)
 			if payload["type"] != "message" || payload["role"] != "user" {
@@ -146,6 +150,15 @@ func userQuery(text string) string {
 		rest = rest[:end]
 	}
 	return strings.TrimSpace(rest)
+}
+
+// CopilotTranscript is where the Copilot CLI keeps a session's events, or ""
+// for an id that is not a plain name.
+func CopilotTranscript(copilotHome, sessionID string) string {
+	if sessionID == "" || strings.ContainsAny(sessionID, `/\`) || sessionID == "." || sessionID == ".." {
+		return ""
+	}
+	return filepath.Join(copilotHome, "session-state", sessionID, "events.jsonl")
 }
 
 // withoutHookContext drops the <hook_context> block Gemini CLI puts before a

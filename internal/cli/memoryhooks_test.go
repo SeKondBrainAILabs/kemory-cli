@@ -94,3 +94,15 @@ func TestConnectGeminiCLIAddsTheEntryAndHooks(t *testing.T) {
 		t.Fatalf("settings:\n%s", settings)
 	}
 }
+
+func TestConnectVSCodeAddsCopilotHooks(t *testing.T) {
+	home := setHome(t)
+	t.Setenv("COPILOT_HOME", "")
+	code, out, _ := run(t, "mcp", "install", "--host", "vscode")
+	if code != 0 || !strings.Contains(out, filepath.Join(".copilot", "hooks", "kemory.json")) {
+		t.Fatalf("got %d %q", code, out)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(home, ".copilot", "hooks", "kemory.json")), "--agent copilot") {
+		t.Fatal("no hooks")
+	}
+}

@@ -123,6 +123,8 @@ func Output(agent, context string) ([]byte, error) {
 	switch agent {
 	case "cursor":
 		return json.Marshal(map[string]string{"additional_context": context})
+	case "copilot":
+		return json.Marshal(map[string]string{"additionalContext": context})
 	case "claude-code", "codex", "gemini-cli":
 		return json.Marshal(map[string]any{"hookSpecificOutput": map[string]string{
 			"hookEventName":     "SessionStart",

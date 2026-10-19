@@ -27,6 +27,11 @@ var memoryHooks = map[string]memoryHook{
 		installed: hosts.CursorHooksInstalled,
 		path:      hosts.CursorHooksPath,
 	},
+	"vscode": {
+		install:   hosts.InstallCopilotHooks,
+		installed: hosts.CopilotHooksInstalled,
+		path:      hosts.CopilotHooksPath,
+	},
 	"gemini-cli": {
 		install:   hosts.InstallGeminiHooks,
 		installed: hosts.GeminiHooksInstalled,

@@ -24,8 +24,8 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    machine with their Kemory status: move with the arrow keys, toggle with
    space, and Enter connects the ticked ones (every ready client starts
    ticked). Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
-   Gemini CLI and OpenCode an MCP entry plus automatic memory; the others an
-   MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
+   Gemini CLI, OpenCode and VS Code an MCP entry plus automatic memory; the
+   others an MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
    restart.
 2. Restart the clients it lists. Warp picks the change up without a restart.
 3. Check the setup end to end at any time with `kemory doctor`.
@@ -94,6 +94,10 @@ For Cursor they add the same hooks to `~/.cursor/hooks.json`, and for Gemini
 CLI to the `hooks` in `~/.gemini/settings.json`. Both run them without asking,
 and your other hooks are left as they are.
 
+For VS Code they write `~/.copilot/hooks/kemory.json`, which Copilot's agent
+mode runs (VS Code's `chat.useHooks` setting, on by default), and which the
+Copilot CLI reads too. kemory owns that file and rewrites it on every connect.
+
 For OpenCode they write a plugin, `~/.config/opencode/plugins/kemory.js`, that
 does the same: it adds your memory to the system prompt when a session starts
 and saves your prompts as the session goes. Connecting again replaces it, so
@@ -109,7 +113,7 @@ everything else in the file is left as it was.
 | `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | `codex` | OpenAI Codex | `~/.codex/config.toml`, plus memory hooks in `~/.codex/hooks.json` (or under `$CODEX_HOME`) |
 | `cursor` | Cursor | `~/.cursor/mcp.json`, plus memory hooks in `~/.cursor/hooks.json` |
-| `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json` |
+| `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json`, plus memory hooks in `~/.copilot/hooks/kemory.json` |
 | `gemini-cli` | Gemini CLI | `~/.gemini/settings.json`, with the memory hooks in the same file |
 | `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
 | `windsurf` | Windsurf / Devin Desktop | `~/.config/devin/mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` for older installs |
@@ -194,7 +198,7 @@ the commands the hooks call.
 
 | Command | Hook event | Does |
 |---|---|---|
-| `kemory hook session-start --agent <agent>` | session start | Prints your namespace summaries from Kemory, led by a short instruction on using it, in the shape the agent injects. `--agent` is `claude-code`, `codex`, `gemini-cli`, `cursor`, `opencode`, or `text` for plain output. |
+| `kemory hook session-start --agent <agent>` | session start | Prints your namespace summaries from Kemory, led by a short instruction on using it, in the shape the agent injects. `--agent` is `claude-code`, `codex`, `copilot`, `gemini-cli`, `cursor`, `opencode`, or `text` for plain output. |
 | `kemory hook capture --agent <agent>` | after each turn, before compaction, session end | Reads the transcript the agent's payload names (or `--transcript`) and saves your prompts that are not stored yet as one memory. After a turn it waits until there are 3 new prompts; at compaction and session end it saves whatever is pending. Prints nothing. |
 
 Neither can hold up the agent: any error is silent, the exit status is always
