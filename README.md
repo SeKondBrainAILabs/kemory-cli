@@ -256,4 +256,4 @@ vulnerability. Questions and bugs go to
 
 [MIT](LICENSE)
 
-The client logos `kemory connect` shows are trademarks of their owners, used only to name the clients it connects.
+The client marks `kemory connect` shows are trademarks of their owners, used only to name the clients it connects; [internal/ui/icons/NOTICE.md](internal/ui/icons/NOTICE.md) lists their sources and licences.

@@ -8,9 +8,9 @@ import (
 	"strings"
 )
 
-// Each client's logo, from the product's own site or app, cut to a 64px
-// rounded tile. The logos are their owners' trademarks, shown only to name
-// the client.
+// Each client's mark, white on its brand colour, cut to a 64px rounded tile.
+// The marks come from Lobe Icons and Simple Icons; icons/NOTICE.md has their
+// sources and licences.
 //
 //go:embed icons/*.png
 var iconFiles embed.FS
