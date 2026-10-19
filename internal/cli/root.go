@@ -25,6 +25,8 @@ type globals struct {
 
 	env     string
 	profile config.Profile
+	// screen is set while connect draws its guided screen; nil means plain lines.
+	screen *screen
 }
 
 func newRoot() (*cobra.Command, *globals) {

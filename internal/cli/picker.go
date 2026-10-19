@@ -45,6 +45,33 @@ func planned(env, host string, covered map[string]string) hostResult {
 // pickRow is one detected host in the picker.
 type pickRow struct {
 	host, state, detail string
+	// short is the status on the guided screen.
+	short string
+}
+
+// via names the way a covered host reaches Kemory, from its coverage reason.
+func via(reason string) string {
+	if strings.Contains(reason, "connector") {
+		return "claude.ai connector"
+	}
+	return "Kemory plugin"
+}
+
+// readyStatus says, briefly, what connecting a ready host would install.
+func readyStatus(env, host string) string {
+	status := "MCP tools"
+	switch {
+	case pluginTools[host] != "" && env == config.DefaultEnv:
+		if _, err := lookPath(pluginTools[host]); err == nil {
+			status = "Kemory plugin · automatic memory"
+		}
+	case memoryHooks[host].install != nil:
+		status = "MCP tools + automatic memory hooks"
+	}
+	if hosts.RunningCheck(host) {
+		status += " · restarts the app"
+	}
+	return status
 }
 
 // pickHosts lists the hosts on this machine with their Kemory status and asks
@@ -59,19 +86,35 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 		reason := covered[h]
 		switch {
 		case reason != "" && len(entries) > 0:
-			rows = append(rows, pickRow{h, "connected", reason + "; " + path +
-				" also has a duplicate entry, which `kemory doctor --fix` removes"})
+			rows = append(rows, pickRow{
+				h, "connected", reason + "; " + path +
+					" also has a duplicate entry, which `kemory doctor --fix` removes",
+				"connected · " + via(reason) + " · duplicate entry: run kemory doctor --fix",
+			})
 		case reason != "":
-			rows = append(rows, pickRow{h, "connected", reason})
+			rows = append(rows, pickRow{h, "connected", reason, "connected · " + via(reason)})
 		case !hosts.Installed(h):
 			missing = append(missing, h)
 		case len(entries) > 0 && needsHooks(h):
-			rows = append(rows, pickRow{h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")"})
+			rows = append(rows, pickRow{
+				h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")",
+				"MCP tools connected · add automatic memory hooks",
+			})
 		case len(entries) > 0:
-			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path})
+			short := "connected · MCP tools"
+			if _, ok := memoryHooks[h]; ok {
+				short = "connected · MCP tools + automatic memory"
+			}
+			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path, short})
 		default:
-			rows = append(rows, pickRow{h, "ready", strings.TrimPrefix(planned(g.env, h, covered).detail, "would ")})
+			rows = append(rows, pickRow{
+				h, "ready", strings.TrimPrefix(planned(g.env, h, covered).detail, "would "),
+				readyStatus(g.env, h),
+			})
 		}
+	}
+	if g.screen != nil {
+		return g.screen.pickFancy(rows, missing)
 	}
 
 	render.Heading("AI clients on this machine")

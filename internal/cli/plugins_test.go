@@ -134,3 +134,19 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+func TestWarningsOnStderrDoNotBreakTheMarketplaceList(t *testing.T) {
+	setHome(t)
+	// A real `claude` warns on stderr when ~/.claude.json is missing; only
+	// stdout is the JSON.
+	lookPath = func(name string) (string, error) { return "/usr/bin/" + name, nil }
+	runTool = func(_ string, args ...string) ([]byte, error) {
+		if strings.Join(args, " ") == "plugin marketplace list --json" {
+			return []byte(`[{"name": "kemory", "repo": "SeKondBrainAILabs/kemory-plugin"}]`), nil
+		}
+		return nil, nil
+	}
+	if name, err := claudeMarketplace(); err != nil || name != "kemory" {
+		t.Fatalf("got %q %v", name, err)
+	}
+}

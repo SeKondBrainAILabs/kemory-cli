@@ -349,12 +349,14 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 				d.emit(label, render.Skip, "installed, not connected")
 				continue
 			}
-			if plugin, fallback := tryPlugin(d.g.env, host); plugin {
+			plugin, pluginErr := tryPlugin(d.g.env, host)
+			if plugin {
 				wired++
 				d.emit(label, render.Pass, pluginInstalled(host))
 				continue
-			} else if fallback != "" {
-				d.emit(label+" plugin", render.Skip, fallback)
+			}
+			if pluginErr != nil {
+				d.emit(label+" plugin", render.Skip, pluginFallback(pluginErr))
 			}
 			done, note, err := withAppClosed(host, d.yes, func() error {
 				return hosts.WriteEntry(host, path, d.g.profile.ServerName, launch)

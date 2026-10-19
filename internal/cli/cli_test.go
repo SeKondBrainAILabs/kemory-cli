@@ -46,6 +46,10 @@ func setHome(t *testing.T) string {
 		return nil, nil
 	}
 	t.Cleanup(func() { lookPath, runTool = look, runner })
+	// The guided screen needs a real terminal; tests get plain output.
+	width := terminalWidth
+	terminalWidth = func() int { return 0 }
+	t.Cleanup(func() { terminalWidth = width })
 	// MCP host configs on Windows live under %APPDATA%.
 	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
 	// Tests never reach a real Kemory: anything not pointed at a fake server

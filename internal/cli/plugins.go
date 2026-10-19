@@ -34,10 +34,12 @@ var pluginInstallers = map[string]func() error{
 // Variables so tests run no real tool.
 var (
 	lookPath = exec.LookPath
-	runTool  = func(name string, args ...string) ([]byte, error) {
+	// runTool returns the tool's stdout. Its stderr, which carries warnings
+	// that must not be parsed as output, is kept on a failure's ExitError.
+	runTool = func(name string, args ...string) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), pluginTimeout)
 		defer cancel()
-		return exec.CommandContext(ctx, name, args...).CombinedOutput() //nolint:gosec // name is "claude" or "grok", arguments are fixed
+		return exec.CommandContext(ctx, name, args...).Output() //nolint:gosec // name is "claude" or "grok", arguments are fixed
 	}
 )
 
@@ -52,6 +54,10 @@ func tool(name string, args ...string) error {
 	}
 	out, err := runTool(name, args...)
 	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+			out = append(out, exit.Stderr...)
+		}
 		msg := strings.TrimSpace(string(out))
 		if i := strings.LastIndexByte(msg, '\n'); i >= 0 {
 			msg = msg[i+1:]
@@ -103,16 +109,21 @@ func claudeMarketplace() (string, error) {
 
 // tryPlugin installs the Kemory plugin when host has one and env is prod,
 // which is what the plugin connects to. It reports whether the plugin is now
-// installed and, when the install failed, why, for the MCP fallback to say.
-func tryPlugin(env, host string) (bool, string) {
+// installed and, when an install was tried and failed, why.
+func tryPlugin(env, host string) (bool, error) {
 	install := pluginInstallers[host]
 	if install == nil || env != config.DefaultEnv {
-		return false, ""
+		return false, nil
 	}
 	if err := install(); err != nil {
-		return false, "the Kemory plugin could not be installed (" + err.Error() + "), so the MCP entry was written instead"
+		return false, err
 	}
-	return true, ""
+	return true, nil
+}
+
+// pluginFallback says why an MCP entry was written instead of the plugin.
+func pluginFallback(err error) string {
+	return "the Kemory plugin could not be installed (" + err.Error() + "), so the MCP entry was written instead"
 }
 
 // pluginInstalled is the result line for a host that got the plugin.

@@ -21,9 +21,12 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    ```
 
    Your browser opens to sign in. kemory then lists the AI clients on this
-   machine with their Kemory status and asks which to connect; Enter takes
-   every one that is ready. Claude Code and Grok Build get the Kemory plugin,
-   the others an MCP entry, and the connection is checked.
+   machine with their Kemory status: move with the arrow keys, toggle with
+   space, and Enter connects the ticked ones (every ready client starts
+   ticked). Claude Code and Grok Build get the Kemory plugin, Codex an MCP
+   entry plus memory hooks, the others an MCP entry, and the connection is
+   checked. A summary lists what is left to do, such as which clients to
+   restart.
 2. Restart the clients it lists. Warp picks the change up without a restart.
 3. Check the setup end to end at any time with `kemory doctor`.
 
@@ -162,6 +165,7 @@ Scripts and agents can act on why a command failed:
 | `KEMORY_HTTP_TIMEOUT` | Seconds `mcp serve` waits for Kemory (default 120) |
 | `KEMORY_OUTPUT` | `text` or `json`, like `--output` |
 | `NO_COLOR` | Disable colour |
+| `KEMORY_ACCESSIBLE=1` | Plain numbered prompts instead of the arrow-key picker, for screen readers |
 | `KEMORY_HEADLESS=1` | Never try to open a browser |
 
 Sign-ins are stored per environment in `~/.kemory/credentials-<env>`. Extra

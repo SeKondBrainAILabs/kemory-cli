@@ -13,6 +13,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/ui"
 )
 
 const hostAll = "all"
@@ -61,6 +62,10 @@ func newMCPInstallCmd(g *globals) *cobra.Command {
 type hostResult struct {
 	host, detail string
 	ok           bool
+	// short is the detail for the guided screen; next is the step the user
+	// still has to take, if any, and restart asks them to restart the host.
+	short, next string
+	restart     bool
 }
 
 func installHosts(g *globals, creds *config.Credentials, hostNames []string, configPath, name string, dryRun bool) error {
@@ -123,34 +128,21 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 		}
 		// A second entry would give the host every Kemory tool twice.
 		if reason := covered[h]; reason != "" {
-			lines = append(lines, hostResult{host: h, detail: "already " + reason + " — nothing written", ok: true})
+			lines = append(lines, hostResult{
+				host: h, detail: "already " + reason + " — nothing written", ok: true,
+				short: "already " + reason,
+			})
 			continue
 		}
-		plugin, fallback := tryPlugin(g.env, h)
-		if plugin {
-			written[h] = true
-			lines = append(lines, hostResult{host: h, detail: pluginInstalled(h), ok: true})
-			continue
-		}
-		path := hosts.ResolveConfig(h)
-		done, note, err := withAppClosed(h, false, func() error { return hosts.WriteEntry(h, path, name, launch) })
-		switch {
-		case err != nil:
-			lines = append(lines, hostResult{host: h, detail: err.Error()})
-		case !done:
-			lines = append(lines, hostResult{host: h, detail: note})
-		default:
-			written[h] = true
-			detail := joinNote(joinNote(path, note), fallback)
-			if hooks, err := addHooks(h, launch); err != nil {
-				detail = joinNote(detail, "memory hooks not added: "+err.Error())
-			} else {
-				detail = joinNote(detail, hooks)
-			}
-			lines = append(lines, hostResult{host: h, detail: detail, ok: true})
-		}
+		var r hostResult
+		g.screen.spin(h, func() { r = connectHost(g, h, name, launch, written) })
+		lines = append(lines, r)
 	}
 	lines = append(lines, results...)
+	if g.screen != nil && !dryRun {
+		g.screen.results(lines)
+		return nil
+	}
 	for _, r := range lines {
 		switch {
 		case dryRun && r.ok:
@@ -185,6 +177,48 @@ func joinNote(detail, note string) string {
 		return detail
 	}
 	return detail + " — " + note
+}
+
+// connectHost connects one host that has no Kemory yet: the plugin where
+// there is one, else the MCP entry, plus memory hooks where the host takes
+// them. It records written hosts in written.
+func connectHost(g *globals, h, name string, launch hosts.Launch, written map[string]bool) hostResult {
+	plugin, pluginErr := tryPlugin(g.env, h)
+	if plugin {
+		written[h] = true
+		return hostResult{
+			host: h, detail: pluginInstalled(h), ok: true,
+			short: "Kemory plugin installed", next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
+		}
+	}
+	path := hosts.ResolveConfig(h)
+	done, note, err := withAppClosed(h, false, func() error { return hosts.WriteEntry(h, path, name, launch) })
+	switch {
+	case err != nil:
+		return hostResult{host: h, detail: err.Error(), short: err.Error()}
+	case !done:
+		return hostResult{host: h, detail: note, short: note}
+	}
+	written[h] = true
+	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: "MCP entry added"}
+	// Warp picks up its config on save.
+	r.restart = h != "warp"
+	if pluginErr != nil {
+		r.detail = joinNote(r.detail, pluginFallback(pluginErr))
+		r.short += " (no plugin: " + pluginErr.Error() + ")"
+	}
+	hooks, err := addHooks(h, launch)
+	switch {
+	case err != nil:
+		r.detail = joinNote(r.detail, "memory hooks not added: "+err.Error())
+		r.short += " · memory hooks not added"
+	case hooks != "":
+		r.detail = joinNote(r.detail, hooks)
+		r.short += " · memory hooks added"
+		r.restart = false
+		r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"
+	}
+	return r
 }
 
 func contains(list []string, s string) bool {
@@ -222,6 +256,10 @@ func newConnectCmd(g *globals) *cobra.Command {
 }
 
 func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool) error {
+	if pick {
+		g.screen = newScreen(g)
+		g.screen.banner()
+	}
 	creds, err := auth.ValidCredentials(g.env, false)
 	if err != nil {
 		return err
@@ -237,7 +275,8 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 		}
 		return installHosts(g, creds, hostNames, "", "", true)
 	}
-	if creds == nil {
+	switch {
+	case creds == nil:
 		render.Echo(fmt.Sprintf("No credentials for env '%s' — starting login…", g.env))
 		if local {
 			err = loginLocal(g)
@@ -253,7 +292,9 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 		if creds == nil {
 			return exits.New("Login did not produce credentials; aborting connect.", exits.Auth)
 		}
-	} else {
+	case g.screen != nil:
+		render.Echo(ui.Done(fmt.Sprintf("Signed in to %s", g.env)))
+	default:
 		render.Success(fmt.Sprintf("✓ Already logged in to '%s'", g.env))
 	}
 
@@ -280,7 +321,12 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 			UserID string `json:"user_id"`
 		}
 		_ = resp.JSON(&m)
-		render.Success("✓ Connected as " + orDefault(firstNonEmpty(m.Email, m.UserID), "your account"))
+		who := orDefault(firstNonEmpty(m.Email, m.UserID), "your account")
+		if g.screen != nil {
+			g.screen.summary(who)
+			return nil
+		}
+		render.Success("✓ Connected as " + who)
 	}
 	return nil
 }
