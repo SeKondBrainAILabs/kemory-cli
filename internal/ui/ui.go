@@ -155,6 +155,9 @@ func Result(host string, ok bool, detail string) string {
 	return mark + " " + bold.Width(16).Render(Name(host)) + dim.Render(detail)
 }
 
+// Failed is a failure line.
+func Failed(text string) string { return cross + " " + text }
+
 // Done is a success line.
 func Done(text string) string { return check + " " + text }
 

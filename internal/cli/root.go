@@ -13,6 +13,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/ui"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/version"
 )
 
@@ -57,6 +58,11 @@ func newRoot() *cobra.Command {
 			g.profile = config.EnvProfile(env)
 			api.Command = strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
 			api.Notice = render.Accent
+			if render.Styled() && headed(cmd) {
+				render.Echo("")
+				render.Echo(" " + ui.Mark() + " " + ui.Bold(cmd.CommandPath()))
+				render.Frame()
+			}
 			return nil
 		},
 	}
@@ -96,6 +102,17 @@ func newRoot() *cobra.Command {
 	root.SetCompletionCommandGroupID("maintenance")
 	installHelp(root)
 	return root
+}
+
+// headed reports whether cmd opens with the mark and its name in a colour
+// terminal. connect draws its own header; hook and mcp serve talk to agents,
+// and completion prints a script.
+func headed(cmd *cobra.Command) bool {
+	switch strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ") {
+	case "connect", "hook session-start", "hook capture", "mcp serve", "help":
+		return false
+	}
+	return !strings.HasPrefix(cmd.CommandPath(), cmd.Root().Name()+" completion")
 }
 
 // Execute runs the CLI with args and returns the process exit code.

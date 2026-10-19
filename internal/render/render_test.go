@@ -24,3 +24,24 @@ func TestWrapRespectsWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestTruncateEndsInAnEllipsisWithinWidth(t *testing.T) {
+	got := truncate("What visual scale should the cannon use so it stays inside its tile?", 20)
+	if len([]rune(got)) > 20 || !strings.HasSuffix(got, "…") {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestPlainOutputIsUnchangedOutsideATerminal(t *testing.T) {
+	var out strings.Builder
+	old := Out
+	Out = &out
+	t.Cleanup(func() { Out = old })
+	Configure(false, false, false)
+	Frame()
+	Success("✓ done")
+	KVs([]KV{{Key: "Email", Value: "a@b.c"}})
+	if got := out.String(); got != "✓ done\nEmail  a@b.c\n" {
+		t.Fatalf("got %q", got)
+	}
+}

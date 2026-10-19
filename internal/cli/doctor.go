@@ -20,6 +20,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/releases"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/residency"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/ui"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/version"
 )
 
@@ -80,12 +81,20 @@ func (d *doctor) run() error {
 		kemoryURL = creds.KemoryURL
 	}
 
-	render.Heading("kemory doctor")
-	render.KVs([]render.KV{
-		{Key: "  os", Value: runtime.GOOS + "/" + runtime.GOARCH},
-		{Key: "  cli", Value: version.Version},
-		{Key: "  kemory", Value: kemoryURL},
-	})
+	if render.Styled() {
+		render.KVs([]render.KV{
+			{Key: "   os", Value: runtime.GOOS + "/" + runtime.GOARCH},
+			{Key: "   cli", Value: version.Version},
+			{Key: "   kemory", Value: kemoryURL},
+		})
+	} else {
+		render.Heading("kemory doctor")
+		render.KVs([]render.KV{
+			{Key: "  os", Value: runtime.GOOS + "/" + runtime.GOARCH},
+			{Key: "  cli", Value: version.Version},
+			{Key: "  kemory", Value: kemoryURL},
+		})
+	}
 	render.Echo("")
 
 	d.checkCredentials(creds)
@@ -112,6 +121,26 @@ func (d *doctor) run() error {
 		return nil
 	}
 	render.Echo("")
+	if render.Styled() {
+		count := map[string]int{}
+		for _, c := range d.checks {
+			count[c.Status]++
+		}
+		if fixHint {
+			render.Echo(ui.Step("Run " + ui.Bold("kemory doctor --fix") + " to connect every installed client and clean up the rest"))
+		}
+		tally := fmt.Sprintf("%d passed", count[string(render.Pass)])
+		if n := count[string(render.Skip)]; n > 0 {
+			tally += fmt.Sprintf(", %d skipped", n)
+		}
+		if n := count[string(render.Fail)]; n > 0 {
+			render.Echo(ui.Failed(fmt.Sprintf("%d failed, %s; each failure says what to do", n, tally)))
+		} else {
+			render.Echo(ui.Done(tally))
+		}
+		render.Echo("")
+		return nil
+	}
 	if fixHint {
 		render.Muted("To connect every installed MCP host and clean up the rest, run:")
 		render.Echo("  kemory doctor --fix")
