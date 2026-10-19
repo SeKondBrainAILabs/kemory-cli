@@ -72,6 +72,10 @@ func styled(w io.Writer) bool {
 // Styled reports whether human output on stdout gets the full look.
 func Styled() bool { return !jsonMode && styled(stdout()) }
 
+// Animated reports whether a spinner may be drawn: stdout and stderr are
+// both styled terminals, and --quiet did not ask for less.
+func Animated() bool { return Styled() && styled(Err) && !quiet }
+
 // framed is set once a command has printed its header: from then on every
 // line it prints is indented to sit under the mark.
 var framed bool

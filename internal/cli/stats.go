@@ -61,7 +61,8 @@ func newStatsCmd(g *globals) *cobra.Command {
 				return err
 			}
 			path := "/api/v1/analytics/recall/summary?days=" + strconv.Itoa(days)
-			resp, err := api.Request(creds, "GET", path, nil, statsTimeout)
+			var resp *api.Response
+			loading("Loading your stats…", func() { resp, err = api.Request(creds, "GET", path, nil, statsTimeout) })
 			if err != nil {
 				return err
 			}
@@ -120,7 +121,7 @@ func newStatsCmd(g *globals) *cobra.Command {
 				{Key: "memories returned", Value: strconv.Itoa(d.DistinctMemories)},
 				{Key: "found a real match", Value: strconv.Itoa(d.MatchedRecalls)},
 				{Key: "flat (nothing stood out)", Value: strconv.Itoa(d.FlatRecalls)},
-				{Key: "tokens injected (cost)", Value: thousands(d.TokensInjected)},
+				{Key: "tokens injected", Value: thousands(d.TokensInjected)},
 				{Key: "mean tokens / recall", Value: mean},
 			})
 			if len(d.ByNamespace) > 0 {

@@ -188,8 +188,18 @@ func Theme() *huh.Theme {
 	return t
 }
 
-// Spin shows a spinner with title on w while work runs, then clears it.
+// Spin shows a spinner with title on the rail while work runs, then clears it.
 func Spin(w io.Writer, title string, work func()) {
+	spin(w, func(frame string) string { return Rail(frame + " " + title) }, work)
+}
+
+// Loading shows a spinner with title under a command's header while work
+// runs, then clears it.
+func Loading(w io.Writer, title string, work func()) {
+	spin(w, func(frame string) string { return " " + frame + " " + dim.Render(title) }, work)
+}
+
+func spin(w io.Writer, line func(frame string) string, work func()) {
 	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	style := lipgloss.NewStyle().Foreground(Pink)
 	done := make(chan struct{})
@@ -200,7 +210,7 @@ func Spin(w io.Writer, title string, work func()) {
 		tick := time.NewTicker(80 * time.Millisecond)
 		defer tick.Stop()
 		for i := 0; ; i++ {
-			fmt.Fprintf(w, "\r%s", Rail(style.Render(frames[i%len(frames)])+" "+title))
+			fmt.Fprintf(w, "\r%s", line(style.Render(frames[i%len(frames)])))
 			select {
 			case <-done:
 				fmt.Fprint(w, "\r\033[2K")

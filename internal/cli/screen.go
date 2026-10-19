@@ -237,3 +237,12 @@ func (s *screen) cancelled() error {
 	render.Echo("")
 	return exits.New("", exits.Failure)
 }
+
+// loading runs work under a spinner with title where one may be drawn.
+func loading(title string, work func()) {
+	if !render.Animated() {
+		work()
+		return
+	}
+	ui.Loading(render.Err, title, work)
+}
