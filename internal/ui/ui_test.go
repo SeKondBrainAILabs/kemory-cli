@@ -5,15 +5,25 @@ import (
 	"testing"
 )
 
-func TestHeaderHasTheMarkNameTaglineAndMaker(t *testing.T) {
+func TestHeaderDrawsTheMarkOnlyWhereImagesWork(t *testing.T) {
+	old := images
+	t.Cleanup(func() { images = old })
+
+	images = noImages
 	h := Header()
-	if strings.Count(h, "\n") != markRows {
-		t.Fatalf("the header must be the mark's %d rows:\n%s", markRows, h)
-	}
-	for _, want := range []string{"persistent memory for your AI agents", "by SeKondBrain", "▀", "▄"} {
+	for _, want := range []string{"persistent memory for your AI agents", "by SeKondBrain"} {
 		if !strings.Contains(h, want) {
 			t.Fatalf("missing %q in:\n%s", want, h)
 		}
+	}
+	if strings.Contains(h, "\x1b]1337") || strings.Count(h, "\n") != 3 {
+		t.Fatalf("plain header:\n%q", h)
+	}
+
+	images = itermImages
+	h = Header()
+	if !strings.Contains(h, "width=6;height=3") || !strings.HasSuffix(h, "\x1b8\x1b[3B\r") {
+		t.Fatalf("image header: %.80q", h)
 	}
 }
 

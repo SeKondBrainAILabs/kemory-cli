@@ -56,9 +56,15 @@ func Logo(host string) string {
 	if err != nil || images == noImages {
 		return tile(host)
 	}
+	return inlineImage(png, 2, 1)
+}
+
+// inlineImage draws png in a box cols wide and rows tall, in the terminal's
+// protocol.
+func inlineImage(png []byte, cols, rows int) string {
 	data := base64.StdEncoding.EncodeToString(png)
 	if images == itermImages {
-		return fmt.Sprintf("\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1;size=%d:%s\a", len(png), data)
+		return fmt.Sprintf("\x1b]1337;File=inline=1;width=%d;height=%d;preserveAspectRatio=1;size=%d:%s\a", cols, rows, len(png), data)
 	}
 	// kitty takes the image in chunks of at most 4096 base64 bytes.
 	var b strings.Builder
@@ -71,7 +77,7 @@ func Logo(host string) string {
 			more = 1
 		}
 		if first {
-			fmt.Fprintf(&b, "\x1b_Ga=T,f=100,c=2,r=1,q=2,m=%d;%s\x1b\\", more, chunk)
+			fmt.Fprintf(&b, "\x1b_Ga=T,f=100,c=%d,r=%d,q=2,m=%d;%s\x1b\\", cols, rows, more, chunk)
 		} else {
 			fmt.Fprintf(&b, "\x1b_Gm=%d;%s\x1b\\", more, chunk)
 		}

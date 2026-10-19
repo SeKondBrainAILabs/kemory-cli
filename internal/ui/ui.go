@@ -31,22 +31,26 @@ var (
 // below it the one-line title is used.
 const MinWidth = 60
 
-// Header is the SeKondBrain mark with the kemory name, tagline and maker
-// beside it.
+// Header is kemory's name, tagline and maker, beside the SeKondBrain mark
+// where the terminal can draw it as an image, three rows tall.
 func Header() string {
-	text := map[int]string{
-		2: wordmark("kemory"),
-		3: lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents"),
-		4: lipgloss.NewStyle().Foreground(Muted).Render("by SeKondBrain"),
+	text := []string{
+		wordmark("kemory"),
+		lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents"),
+		lipgloss.NewStyle().Foreground(Muted).Render("by SeKondBrain"),
 	}
+	mark, err := iconFiles.ReadFile("icons/sekondbrain.png")
+	if err != nil || images == noImages {
+		return " " + strings.Join(text, "\n ") + "\n"
+	}
+	// Write the text beside the mark's place first, then go back up and draw
+	// the mark there, keeping the cursor where the text left it.
+	const indent = "         " // a margin, the mark's 6 columns and a gap
 	var b strings.Builder
-	for i, line := range markLines() {
-		b.WriteString(" " + line)
-		if t := text[i]; t != "" {
-			b.WriteString("   " + t)
-		}
-		b.WriteString("\n")
+	for _, t := range text {
+		b.WriteString(indent + t + "\n")
 	}
+	b.WriteString("\x1b[3A\r\x1b[1C\x1b7" + inlineImage(mark, 6, 3) + "\x1b8\x1b[3B\r")
 	return b.String()
 }
 
