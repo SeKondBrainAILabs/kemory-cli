@@ -9,7 +9,9 @@ import "github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 type memoryHook struct {
 	install   func(hosts.Launch) (string, error)
 	installed func() bool
-	// approve is what the user must do before the agent runs the hooks.
+	path      func() string
+	// approve is what the user must do before the agent runs the hooks, if
+	// anything.
 	approve string
 }
 
@@ -17,7 +19,13 @@ var memoryHooks = map[string]memoryHook{
 	"codex": {
 		install:   hosts.InstallCodexHooks,
 		installed: hosts.CodexHooksInstalled,
+		path:      hosts.CodexHooksPath,
 		approve:   "approve them once with /hooks in Codex",
+	},
+	"cursor": {
+		install:   hosts.InstallCursorHooks,
+		installed: hosts.CursorHooksInstalled,
+		path:      hosts.CursorHooksPath,
 	},
 }
 
@@ -37,5 +45,9 @@ func addHooks(host string, launch hosts.Launch) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return "automatic memory hooks in " + path + "; " + h.approve, nil
+	line := "automatic memory hooks in " + path
+	if h.approve != "" {
+		line += "; " + h.approve
+	}
+	return line, nil
 }

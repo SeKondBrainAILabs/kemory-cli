@@ -23,9 +23,9 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    Your browser opens to sign in. kemory then lists the AI clients on this
    machine with their Kemory status: move with the arrow keys, toggle with
    space, and Enter connects the ticked ones (every ready client starts
-   ticked). Claude Code and Grok Build get the Kemory plugin, Codex an MCP
-   entry plus memory hooks, the others an MCP entry, and the connection is
-   checked. A summary lists what is left to do, such as which clients to
+   ticked). Claude Code and Grok Build get the Kemory plugin, Codex and
+   Cursor an MCP entry plus memory hooks, the others an MCP entry, and the
+   connection is checked. A summary lists what is left to do, such as which clients to
    restart.
 2. Restart the clients it lists. Warp picks the change up without a restart.
 3. Check the setup end to end at any time with `kemory doctor`.
@@ -90,6 +90,9 @@ when a session starts and save the session as it goes ([Hooks](#hooks)). Codex
 runs a new hook only after you approve it, so open Codex once and approve them
 with `/hooks`. Your other hooks in that file are left as they are.
 
+For Cursor they add the same hooks to `~/.cursor/hooks.json`. Cursor runs
+them without asking, and leaves your other hooks as they are.
+
 For every other client they write an MCP entry. The entry only starts
 `kemory mcp serve`; no token or key is written into the client's config, and
 everything else in the file is left as it was.
@@ -99,7 +102,7 @@ everything else in the file is left as it was.
 | `claude-code` | Claude Code | `~/.claude.json` |
 | `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | `codex` | OpenAI Codex | `~/.codex/config.toml`, plus memory hooks in `~/.codex/hooks.json` (or under `$CODEX_HOME`) |
-| `cursor` | Cursor | `~/.cursor/mcp.json` |
+| `cursor` | Cursor | `~/.cursor/mcp.json`, plus memory hooks in `~/.cursor/hooks.json` |
 | `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json` |
 | `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` |
 | `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |

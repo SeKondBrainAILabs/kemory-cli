@@ -215,8 +215,10 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 	case hooks != "":
 		r.detail = joinNote(r.detail, hooks)
 		r.short += " · memory hooks added"
-		r.restart = false
-		r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"
+		if memoryHooks[h].approve != "" {
+			r.restart = false
+			r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"
+		}
 	}
 	return r
 }

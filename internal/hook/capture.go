@@ -36,12 +36,17 @@ func ParseEvent(payload []byte) Event {
 		}
 		return ""
 	}
+	// Cursor sends both ids, and only conversation_id on every event, so it
+	// comes first: per-turn and end-of-session captures share one mark.
 	e := Event{
-		SessionID:      str("session_id", "sessionId", "conversation_id", "conversationId"),
+		SessionID:      str("conversation_id", "conversationId", "session_id", "sessionId"),
 		Name:           str("hook_event_name", "hookEventName", "event"),
 		TranscriptPath: str("transcript_path", "transcriptPath"),
 		Cwd:            str("cwd"),
 		Reason:         str("reason"),
+	}
+	if roots, ok := raw["workspace_roots"].([]any); ok && e.Cwd == "" && len(roots) > 0 {
+		e.Cwd, _ = roots[0].(string)
 	}
 	if t := str("trigger"); e.Reason == "" && t != "" && strings.EqualFold(e.Name, "PreCompact") {
 		e.Reason = "compact-" + t
@@ -63,9 +68,10 @@ func (e Event) incremental() bool {
 // UserTurns reads the user's own prompts from a transcript in JSON Lines. It
 // accepts Claude Code's shape ({"type":"user","message":{"content":…}}),
 // Codex's ({"type":"response_item","payload":{"type":"message","role":"user",
-// "content":[{"type":"input_text","text":…}]}}) and the common
-// {"role":"user","content":…} one. Harness-injected text (starting with "<"
-// or "Caveat:") is skipped: it is not the user's intent.
+// "content":[{"type":"input_text","text":…}]}}), Cursor's
+// ({"role":"user","message":{"content":…}}, the prompt inside <user_query>)
+// and the common {"role":"user","content":…} one. Harness-injected text
+// (starting with "<" or "Caveat:") is skipped: it is not the user's intent.
 func UserTurns(path string) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -99,15 +105,33 @@ func UserTurns(path string) ([]string, error) {
 			}
 		case line["role"] == "user":
 			content = line["content"]
+			if msg, ok := line["message"].(map[string]any); ok {
+				content = msg["content"]
+			}
 		default:
 			continue
 		}
-		text := strings.TrimSpace(flatten(content))
+		text := userQuery(strings.TrimSpace(flatten(content)))
 		if text != "" && !strings.HasPrefix(text, "<") && !strings.HasPrefix(text, "Caveat:") {
 			turns = append(turns, text)
 		}
 	}
 	return turns, scanner.Err()
+}
+
+// userQuery is the prompt Cursor wraps in <user_query> among its injected
+// tags, or text unchanged when there is no such wrapper.
+func userQuery(text string) string {
+	const open, closing = "<user_query>", "</user_query>"
+	start := strings.Index(text, open)
+	if start < 0 {
+		return text
+	}
+	rest := text[start+len(open):]
+	if end := strings.Index(rest, closing); end >= 0 {
+		rest = rest[:end]
+	}
+	return strings.TrimSpace(rest)
 }
 
 func codexUserText(content any) string {

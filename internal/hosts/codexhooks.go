@@ -39,7 +39,7 @@ func CodexHooksPath() string {
 	return filepath.Join(dir, "hooks.json")
 }
 
-// shellQuote quotes an argument for the shell Codex runs hook commands in.
+// shellQuote quotes an argument for the shell an agent runs hook commands in.
 func shellQuote(arg string) string {
 	if arg != "" && !strings.ContainsAny(arg, " \t\n'\"\\$`;&|<>()*?[]{}!#~") {
 		return arg
@@ -47,9 +47,9 @@ func shellQuote(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
 }
 
-// codexHookCommand is the command a Codex hook runs for hook (session-start
-// or capture), started the way launch starts kemory.
-func codexHookCommand(launch Launch, hook string) string {
+// hookCommand is the command agent's hook runs for hook (session-start or
+// capture), started the way launch starts kemory.
+func hookCommand(launch Launch, hook, agent string) string {
 	// launch.Args ends in "mcp serve"; keep what precedes it (the npx/uvx
 	// package and --env) and run the hook instead.
 	args := launch.Args
@@ -60,14 +60,15 @@ func codexHookCommand(launch Launch, hook string) string {
 	for _, a := range args {
 		parts = append(parts, shellQuote(a))
 	}
-	parts = append(parts, "hook", hook, "--agent", "codex")
+	parts = append(parts, "hook", hook, "--agent", agent)
 	return strings.Join(parts, " ")
 }
 
-// isKemoryHook reports whether a handler command is one kemory wrote.
-func isKemoryHook(command string) bool {
+// isKemoryHook reports whether a handler command is one kemory wrote for
+// agent.
+func isKemoryHook(command, agent string) bool {
 	return strings.Contains(command, "kemory") &&
-		(strings.Contains(command, " hook session-start --agent codex") || strings.Contains(command, " hook capture --agent codex"))
+		(strings.Contains(command, " hook session-start --agent "+agent) || strings.Contains(command, " hook capture --agent "+agent))
 }
 
 type codexHandler struct {
@@ -82,7 +83,9 @@ type codexGroup struct {
 	Hooks   []codexHandler `json:"hooks"`
 }
 
-func readCodexHooks(path string) (*jsonedit.Object, *jsonedit.Object, error) {
+// readHooks reads an agent's hooks file and its "hooks" object, both empty
+// when the file does not exist.
+func readHooks(path string) (*jsonedit.Object, *jsonedit.Object, error) {
 	cfg := jsonedit.NewObject()
 	data, err := os.ReadFile(path)
 	switch {
@@ -125,7 +128,7 @@ func withoutKemory(raw json.RawMessage) ([]json.RawMessage, bool, error) {
 			var handler struct {
 				Command string `json:"command"`
 			}
-			if json.Unmarshal(h, &handler) == nil && isKemoryHook(handler.Command) {
+			if json.Unmarshal(h, &handler) == nil && isKemoryHook(handler.Command, "codex") {
 				found = true
 				continue
 			}
@@ -156,7 +159,7 @@ func withoutKemory(raw json.RawMessage) ([]json.RawMessage, bool, error) {
 // it added before, and leaves every other hook as it was.
 func InstallCodexHooks(launch Launch) (string, error) {
 	path := CodexHooksPath()
-	cfg, events, err := readCodexHooks(path)
+	cfg, events, err := readHooks(path)
 	if err != nil {
 		return path, err
 	}
@@ -166,7 +169,7 @@ func InstallCodexHooks(launch Launch) (string, error) {
 		if err != nil {
 			return path, invalid(path, fmt.Sprintf("has a %s value that is not a list of hook groups", e.event))
 		}
-		handler := codexHandler{Type: "command", Command: codexHookCommand(launch, e.hook), Timeout: e.timeout}
+		handler := codexHandler{Type: "command", Command: hookCommand(launch, e.hook, "codex"), Timeout: e.timeout}
 		if e.hook == "session-start" {
 			handler.StatusMessage = "Loading Kemory memory…"
 		}
@@ -187,7 +190,7 @@ func InstallCodexHooks(launch Launch) (string, error) {
 // CodexHooksInstalled reports whether every kemory hook is in Codex's hooks
 // file.
 func CodexHooksInstalled() bool {
-	_, events, err := readCodexHooks(CodexHooksPath())
+	_, events, err := readHooks(CodexHooksPath())
 	if err != nil {
 		return false
 	}

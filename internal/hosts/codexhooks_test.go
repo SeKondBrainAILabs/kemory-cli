@@ -61,10 +61,10 @@ func TestCodexHooksLeaveTheUsersOwnHooksAlone(t *testing.T) {
 func TestCodexHooksRunTheWayKemoryWasStarted(t *testing.T) {
 	setHome(t)
 	t.Setenv("KEMORY_LAUNCHER", "npx")
-	if got := codexHookCommand(LaunchFor("india"), "capture"); got != "npx -y kemory --env india hook capture --agent codex" {
+	if got := hookCommand(LaunchFor("india"), "capture", "codex"); got != "npx -y kemory --env india hook capture --agent codex" {
 		t.Fatalf("got %q", got)
 	}
-	if got := codexHookCommand(Launch{Command: "/Applications/My Tools/kemory", Args: []string{"mcp", "serve"}}, "capture"); got != "'/Applications/My Tools/kemory' hook capture --agent codex" {
+	if got := hookCommand(Launch{Command: "/Applications/My Tools/kemory", Args: []string{"mcp", "serve"}}, "capture", "codex"); got != "'/Applications/My Tools/kemory' hook capture --agent codex" {
 		t.Fatalf("a path with a space must be quoted: %q", got)
 	}
 }

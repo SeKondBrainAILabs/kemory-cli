@@ -206,3 +206,24 @@ func TestUserTurnsReadsCodexAndDropsInjectedParts(t *testing.T) {
 		t.Fatalf("got %q %v", turns, err)
 	}
 }
+
+func TestCursorEventsAndTranscript(t *testing.T) {
+	e := ParseEvent([]byte(`{"conversation_id": "c1", "session_id": "other", "hook_event_name": "stop",
+		"transcript_path": "/t", "workspace_roots": ["/w"], "status": "completed", "loop_count": 0}`))
+	if e.SessionID != "c1" || e.Cwd != "/w" || !e.incremental() {
+		t.Fatalf("%+v", e)
+	}
+	if e := ParseEvent([]byte(`{"conversation_id": "c1", "hook_event_name": "preCompact", "trigger": "auto"}`)); e.Reason != "compact-auto" {
+		t.Fatalf("%+v", e)
+	}
+
+	path := writeTranscript(t,
+		`{"role": "user", "message": {"content": [{"type": "text", "text": "<timestamp>Monday, Oct 19, 2026, 1:00 PM (UTC+2)</timestamp>\n<user_query>\nfix the build\n</user_query>"}]}}`,
+		`{"role": "assistant", "message": {"content": [{"type": "text", "text": "done"}, {"type": "tool_use", "name": "x"}]}}`,
+		`{"role": "user", "message": {"content": [{"type": "text", "text": "<dynamic_tools>list</dynamic_tools>"}]}}`,
+		`{"role": "user", "message": {"content": [{"type": "text", "text": "<user_query>ship it</user_query>"}]}}`)
+	turns, err := UserTurns(path)
+	if err != nil || strings.Join(turns, "|") != "fix the build|ship it" {
+		t.Fatalf("got %q %v", turns, err)
+	}
+}

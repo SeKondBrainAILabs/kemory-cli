@@ -43,3 +43,25 @@ func TestConnectCodexAddsTheEntryAndHooks(t *testing.T) {
 		t.Fatal("no hooks")
 	}
 }
+
+func TestConnectCursorAddsTheEntryAndHooksWithNothingToApprove(t *testing.T) {
+	home := setHome(t)
+	code, out, _ := run(t, "mcp", "install", "--host", "cursor")
+	if code != 0 || !strings.Contains(out, "automatic memory hooks in") || strings.Contains(out, "approve") {
+		t.Fatalf("got %d %q", code, out)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(home, ".cursor", "hooks.json")), "hook session-start --agent cursor") {
+		t.Fatal("no hooks")
+	}
+	installApp(t, home, ".cursor")
+	fakeReleases(t, `[]`)
+	_, report := runDoctor(t)
+	if statusOf(report, "mcp host: cursor") != "pass" {
+		t.Fatalf("doctor: %+v", report)
+	}
+	for _, c := range report.Checks {
+		if c.Check == "mcp host: cursor" && (c.Detail == nil || !strings.Contains(*c.Detail, "automatic memory hooks installed")) {
+			t.Fatalf("doctor: %+v", c)
+		}
+	}
+}

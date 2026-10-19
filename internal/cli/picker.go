@@ -29,8 +29,8 @@ func planned(env, host string, covered map[string]string) hostResult {
 		note = errNoTool(tool).Error() + ", so no plugin"
 	}
 	detail := "would add the MCP entry to " + hosts.ResolveConfig(host)
-	if _, ok := memoryHooks[host]; ok {
-		detail += " and memory hooks to " + hosts.CodexHooksPath()
+	if h, ok := memoryHooks[host]; ok {
+		detail += " and memory hooks to " + h.path()
 	}
 	if hosts.RunningCheck(host) {
 		if hosts.InsideApp(host) {

@@ -200,7 +200,10 @@ func Installed(name string) bool {
 	if !ok {
 		return false
 	}
-	ours := map[string]bool{}
+	ours := map[string]bool{
+		filepath.Clean(CodexHooksPath()):  true,
+		filepath.Clean(CursorHooksPath()): true,
+	}
 	for _, other := range registry {
 		for _, p := range other.paths() {
 			ours[filepath.Clean(p)] = true
