@@ -16,7 +16,7 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
 1. Connect your AI clients. Nothing to install first:
 
    ```bash
-   npx kemory connect   # Node.js 18+
+   npx -y kemory connect   # Node.js 18+
    uvx kemory connect   # or with uv
    ```
 

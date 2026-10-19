@@ -370,7 +370,7 @@ var executablePath = os.Executable
 func detectChannel() installChannel {
 	switch os.Getenv("KEMORY_LAUNCHER") {
 	case "npx":
-		return installChannel{"npx", "npx always runs the newest release; nothing to upgrade (pin a version with `npx kemory@<version>`).", nil}
+		return installChannel{"npx", "npx always runs the newest release; nothing to upgrade (pin a version with `npx -y kemory@<version>`).", nil}
 	case "npm":
 		return installChannel{"npm", "npm install -g kemory@latest", []string{"npm", "install", "-g", "kemory@latest"}}
 	}

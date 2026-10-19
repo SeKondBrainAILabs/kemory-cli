@@ -18,7 +18,7 @@ This package contains the native `kemory` binary for your platform (macOS, Linux
 uv tool install kemory    # or: pipx install kemory
 ```
 
-Also available with `npx kemory` and `brew install sekondbrainailabs/s9n/kemory`.
+Also available with `npx -y kemory` and `brew install sekondbrainailabs/s9n/kemory`.
 
 ## Common commands
 
