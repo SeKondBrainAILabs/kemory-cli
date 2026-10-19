@@ -80,7 +80,7 @@ func newRoot() (*cobra.Command, *globals) {
 			newForgetCmd(g), newNamespacesCmd(g), newExportCmd(g), newStatsCmd(g), newBrowseCmd(g),
 		}},
 		{"identity", "Identity:", []*cobra.Command{newWhoamiCmd(g), newOrgsCmd(g), newUseCmd(g), newKeysCmd(g)}},
-		{"integrations", "Integrations:", []*cobra.Command{newMCPCmd(g)}},
+		{"integrations", "Integrations:", []*cobra.Command{newMCPCmd(g), newHookCmd(g)}},
 		{"maintenance", "Maintenance:", []*cobra.Command{newUpgradeCmd(), newTelemetryCmd(g)}},
 	}
 	for _, grp := range groups {

@@ -55,6 +55,7 @@ the copy you installed.
 | `kemory logout` | Remove the cached sign-in for the selected environment |
 | `kemory whoami` | Show your account, active organisation and teams |
 | `kemory mcp serve` | The stdio MCP bridge an MCP client launches |
+| `kemory hook session-start`, `hook capture` | What a coding agent's hooks run: load your Kemory context when a session starts, save the session when it ends ([Hooks](#hooks)) |
 | `kemory connect` | Sign in if needed, wire an MCP client and check the connection |
 | `kemory mcp install` | Write the kemory entry into MCP clients (`--host all` for every installed one) |
 | `kemory doctor` | Check sign-in, network, API and MCP clients; `--fix` wires or cleans them |
@@ -165,6 +166,36 @@ by `KEMORY_ENVIRONMENTS_FILE`):
 ```json
 {"myenv": {"issuer": "https://idp.example.com/realms/x", "kemory_url": "https://kemory.example.com", "dashboard_url": "https://app.example.com", "server_name": "kemory-myenv"}}
 ```
+
+## Hooks
+
+Coding agents with hooks can give a session your Kemory context when it starts
+and save it when it ends. `kemory connect` sets this up where it can; these are
+the commands the hooks call.
+
+| Command | Hook event | Does |
+|---|---|---|
+| `kemory hook session-start --agent <agent>` | session start | Prints your namespace summaries from Kemory, led by a short instruction on using it, in the shape the agent injects. `--agent` is `claude-code`, `codex`, `gemini-cli`, `cursor`, or `text` for plain output. |
+| `kemory hook capture --agent <agent>` | after each turn, before compaction, session end | Reads the transcript the agent's payload names (or `--transcript`) and saves your prompts that are not stored yet as one memory. After a turn it waits until there are 3 new prompts; at compaction and session end it saves whatever is pending. Prints nothing. |
+
+Neither can hold up the agent: any error is silent, the exit status is always
+0, and each gives up after `KEMORY_HOOK_TIMEOUT` seconds (default 2).
+`KEMORY_HOOK_DEBUG=1` prints why a hook did nothing.
+
+Capture sends only your own prompts, never the agent's replies or tool output:
+at most the last 12 new prompts and 8000 characters per memory, with
+credential-shaped text (API keys, tokens, passwords, private keys) replaced by
+`[REDACTED]`. They are stored in the `user:sessions` namespace, visible only to
+you. It records what it has stored in `~/.kemory/.captured/<session>`, the same
+file the Kemory plugin uses, so a session is never stored twice.
+
+| Variable | Effect |
+|---|---|
+| `KEMORY_CONTEXT=0` | Turn off session-start context |
+| `KEMORY_CONTEXT_DEPTH`, `KEMORY_CONTEXT_MAX_CHARS`, `KEMORY_CONTEXT_NAMESPACES` | Summary depth (default `l3`), character budget (default 4000), namespaces to include (comma-separated; default all) |
+| `KEMORY_AUTO_CAPTURE=0` | Turn off capture |
+| `KEMORY_CAPTURE_NAMESPACE`, `KEMORY_CAPTURE_VISIBILITY` | Where captures go (default `user:sessions`, `user-private`) |
+| `KEMORY_CAPTURE_MAX_TURNS`, `KEMORY_CAPTURE_MIN_NEW_TURNS` | Prompts per memory (default 12), new prompts a per-turn capture waits for (default 3) |
 
 ## What the CLI sends
 
