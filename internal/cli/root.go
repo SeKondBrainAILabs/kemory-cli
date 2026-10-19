@@ -71,7 +71,7 @@ func newRoot() *cobra.Command {
 		return exits.New(err.Error(), exits.Usage)
 	})
 	flags := root.PersistentFlags()
-	flags.StringVar(&g.envFlag, "env", "", "Target environment: 'prod' (default), 'india' or 'local'. Overrides KEMORY_ENV. Each env keeps its own login.")
+	flags.StringVar(&g.envFlag, "env", "", "Kemory environment to use (default: prod). Each keeps its own sign-in. Also settable with KEMORY_ENV.")
 	flags.BoolVar(&g.noColor, "no-color", false, "Disable colour. The NO_COLOR environment variable does the same.")
 	flags.StringVar(&g.output, "output", "", "text (default) for people, json for scripts and agents. Also settable with KEMORY_OUTPUT.")
 	flags.BoolVarP(&g.quiet, "quiet", "q", false, "Drop confirmations and hints. Warnings, errors and requested data still print.")
@@ -100,6 +100,16 @@ func newRoot() *cobra.Command {
 	}
 	root.SetHelpCommandGroupID("maintenance")
 	root.SetCompletionCommandGroupID("maintenance")
+	// `kemory help <cmd>` and `kemory completion <shell>` still work; the
+	// list leaves them out, since --help and shell setup rarely need finding.
+	root.SetHelpCommand(&cobra.Command{Use: "help [command]", Hidden: true, Run: func(c *cobra.Command, args []string) {
+		target, _, err := c.Root().Find(args)
+		if err != nil || target == nil {
+			target = c.Root()
+		}
+		_ = target.Help()
+	}})
+	root.CompletionOptions.HiddenDefaultCmd = true
 	installHelp(root)
 	return root
 }

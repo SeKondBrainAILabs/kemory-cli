@@ -324,10 +324,11 @@ func newTelemetryCmd(g *globals) *cobra.Command {
 
 func newBrowseCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
-		Use:   "browse",
-		Short: "Deprecated: read your vault in the dashboard.",
-		Long:  "Deprecated. Kept so the command points at the dashboard instead of failing.",
-		Args:  cobra.NoArgs,
+		Use:    "browse",
+		Hidden: true, // deprecated: still answers, no longer listed
+		Short:  "Deprecated: read your vault in the dashboard.",
+		Long:   "Deprecated. Kept so the command points at the dashboard instead of failing.",
+		Args:   cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			render.Warn("`kemory browse` is deprecated and no longer opens a terminal UI.")
 			if u := strings.TrimRight(g.profile.DashboardURL, "/"); u != "" {

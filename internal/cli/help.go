@@ -81,7 +81,8 @@ func styledHelp(cmd *cobra.Command) string {
 
 	b.WriteString("\n")
 	if !cmd.HasParent() {
-		b.WriteString(ui.Header())
+		line(" " + ui.Mark() + " " + ui.Wordmark())
+		line("   " + ui.Tagline())
 	} else {
 		line(" " + ui.Mark() + " " + ui.Bold(cmd.CommandPath()))
 		about := strings.TrimSpace(cmd.Long)
@@ -98,15 +99,19 @@ func styledHelp(cmd *cobra.Command) string {
 		}
 	}
 
-	section("Usage")
-	if cmd.Runnable() {
-		line("   " + cmd.UseLine())
-	}
-	if cmd.HasAvailableSubCommands() {
-		line("   " + cmd.CommandPath() + " <command>")
-	}
-	if len(cmd.Aliases) > 0 {
-		line("   " + ui.Dim("also: "+strings.Join(cmd.Aliases, ", ")))
+	// The root's command list says how to use it; a command's usage line
+	// shows its arguments.
+	if cmd.HasParent() {
+		section("Usage")
+		if cmd.Runnable() {
+			line("   " + cmd.UseLine())
+		}
+		if cmd.HasAvailableSubCommands() {
+			line("   " + cmd.CommandPath() + " <command>")
+		}
+		if len(cmd.Aliases) > 0 {
+			line("   " + ui.Dim("also: "+strings.Join(cmd.Aliases, ", ")))
+		}
 	}
 
 	if ex := strings.TrimRight(cmd.Example, "\n"); ex != "" {
@@ -170,6 +175,10 @@ func styledHelp(cmd *cobra.Command) string {
 		}
 		section(title)
 		for _, l := range strings.Split(usages, "\n") {
+			// --help is how this page was reached; the footer names it.
+			if strings.Contains(l, "--help ") || strings.HasSuffix(l, "--help") {
+				continue
+			}
 			if m := flagLine.FindStringSubmatch(l); m != nil {
 				line(" " + m[1] + ui.Bold(m[2]) + m[3] + m[4])
 			} else {

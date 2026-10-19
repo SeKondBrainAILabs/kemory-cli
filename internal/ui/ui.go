@@ -43,6 +43,14 @@ func Header() string {
 		"   " + dim.Render("by SeKondBrain") + "\n"
 }
 
+// Wordmark is "kemory" in its gradient.
+func Wordmark() string { return wordmark("kemory") }
+
+// Tagline is Kemory's one-line description.
+func Tagline() string {
+	return lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents")
+}
+
 // wordmark is word in bold, in a blue-to-purple-to-pink gradient.
 func wordmark(word string) string {
 	stops := []rgb{hex(Blue), hex(Purple), hex(Pink)}

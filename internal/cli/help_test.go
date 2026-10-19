@@ -10,9 +10,14 @@ import (
 func TestStyledHelpListsGroupsCommandsAndFlags(t *testing.T) {
 	root := newRoot()
 	h := styledHelp(root)
-	for _, want := range []string{"persistent memory for your AI agents", "Usage", "Getting started", "connect", "Your vault", "Flags", "--output", "Run kemory <command> --help for details."} {
+	for _, want := range []string{"persistent memory for your AI agents", "Getting started", "connect", "Your vault", "Flags", "--output", "Run kemory <command> --help for details."} {
 		if !strings.Contains(h, want) {
 			t.Fatalf("missing %q in:\n%s", want, h)
+		}
+	}
+	for _, gone := range []string{"Usage", "browse", "completion", " help ", "-h, --help", "india", "by SeKondBrain"} {
+		if strings.Contains(h, gone) {
+			t.Fatalf("%q should not be listed in:\n%s", gone, h)
 		}
 	}
 	doctor, _, err := root.Find([]string{"doctor"})
@@ -20,7 +25,7 @@ func TestStyledHelpListsGroupsCommandsAndFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 	h = styledHelp(doctor)
-	for _, want := range []string{"kemory doctor", "Global flags", "--fix"} {
+	for _, want := range []string{"kemory doctor", "Usage", "Global flags", "--fix"} {
 		if !strings.Contains(h, want) {
 			t.Fatalf("missing %q in:\n%s", want, h)
 		}
