@@ -270,6 +270,8 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 	if dryRun {
 		if creds == nil {
 			render.Muted(fmt.Sprintf("Dry run: would sign in to '%s' first.", g.env))
+		} else {
+			g.screen.signedIn(creds.Email, g.env)
 		}
 		if pick {
 			if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {
@@ -295,11 +297,10 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 		if creds == nil {
 			return exits.New("Login did not produce credentials; aborting connect.", exits.Auth)
 		}
-	case g.screen != nil:
-		render.Echo(ui.Done(fmt.Sprintf("Signed in to %s", g.env)))
-	default:
+	case g.screen == nil:
 		render.Success(fmt.Sprintf("✓ Already logged in to '%s'", g.env))
 	}
+	g.screen.signedIn(creds.Email, g.env)
 
 	if pick {
 		if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {

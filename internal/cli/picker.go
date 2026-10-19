@@ -101,7 +101,7 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 		case len(entries) > 0 && needsHooks(h):
 			rows = append(rows, pickRow{
 				h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")",
-				"adds automatic memory (memory tools already connected)",
+				"adds automatic memory",
 			})
 		case len(entries) > 0:
 			short := "memory tools"

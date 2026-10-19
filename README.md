@@ -20,10 +20,9 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    uvx kemory connect   # or with uv
    ```
 
-   Your browser opens to sign in. kemory then shows the AI clients on this
-   machine that already have Kemory, and asks which of the others to connect:
-   move with the arrow keys, toggle with space, and Enter connects the ticked
-   ones (all start ticked). Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
+   Your browser opens to sign in. kemory then lists the AI clients on this
+   machine, `[ready]` or `[connected]`, and asks once: connect every ready
+   client, choose some, or cancel. Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
    Gemini CLI, OpenCode and VS Code an MCP entry plus automatic memory; the
    others an MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
    restart.
@@ -180,6 +179,7 @@ Scripts and agents can act on why a command failed:
 | `KEMORY_OUTPUT` | `text` or `json`, like `--output` |
 | `NO_COLOR` | Disable colour |
 | `KEMORY_ACCESSIBLE=1` | Plain numbered prompts instead of the arrow-key picker, for screen readers |
+| `KEMORY_ICONS` | `1` draws client logos in any terminal (Warp, tmux), `0` never; by default only iTerm2, WezTerm, kitty and Ghostty get them |
 | `KEMORY_HEADLESS=1` | Never try to open a browser |
 
 Sign-ins are stored per environment in `~/.kemory/credentials-<env>`. Extra
@@ -255,3 +255,5 @@ vulnerability. Questions and bugs go to
 ## License
 
 [MIT](LICENSE)
+
+The client logos `kemory connect` shows are trademarks of their owners, used only to name the clients it connects.

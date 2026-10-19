@@ -64,6 +64,18 @@ func (s *screen) banner() {
 	}
 }
 
+// signedIn opens the rail with the account kemory connects for.
+func (s *screen) signedIn(email, env string) {
+	if s == nil {
+		return
+	}
+	who := "Signed in to " + env
+	if email != "" {
+		who = "Signed in as " + email + ui.Dim(" · "+env)
+	}
+	render.Echo(ui.Start(who))
+}
+
 // spin runs work under a spinner naming host. An app that may ask to be quit
 // gets no spinner, so its question is not drawn over.
 func (s *screen) spin(host string, work func()) {
@@ -76,9 +88,9 @@ func (s *screen) spin(host string, work func()) {
 
 // results prints the finished rows and remembers the next steps.
 func (s *screen) results(lines []hostResult) {
-	render.Echo("")
+	render.Echo(ui.Rail(""))
 	for _, r := range lines {
-		render.Echo(ui.Result(r.host, r.ok, orDefault(r.short, r.detail)))
+		render.Echo(ui.Rail(ui.Result(r.host, r.ok, orDefault(r.short, r.detail))))
 		if r.ok && !strings.HasPrefix(r.short, "already") {
 			s.connected++
 		}
@@ -89,21 +101,26 @@ func (s *screen) results(lines []hostResult) {
 			s.restart = append(s.restart, ui.Name(r.host))
 		}
 	}
-	render.Echo("")
 }
 
-// summary closes the screen with who is signed in and what is left to do.
+// summary closes the rail with the next steps and who is connected.
 func (s *screen) summary(who string) {
-	headline := "Kemory is connected for " + who
-	if s.connected > 0 {
-		headline = fmt.Sprintf("Kemory is connected to %d client%s for %s", s.connected, plural(s.connected), who)
-	}
 	steps := append([]string{}, s.next...)
 	if len(s.restart) > 0 {
 		steps = append(steps, "Restart "+listJoin(s.restart)+" to load Kemory")
 	}
-	steps = append(steps, "Check everything at any time with `kemory doctor`")
-	render.Echo(ui.Summary(headline, steps))
+	steps = append(steps, "Check everything at any time with "+ui.Bold("kemory doctor"))
+	render.Echo(ui.Rail(""))
+	render.Echo(ui.Rail(ui.Bold("Next")))
+	for _, step := range steps {
+		render.Echo(ui.Rail(ui.Step(step)))
+	}
+	render.Echo(ui.Rail(""))
+	headline := "Kemory is connected for " + who
+	if s.connected > 0 {
+		headline = fmt.Sprintf("Kemory is connected to %d client%s for %s", s.connected, plural(s.connected), who)
+	}
+	render.Echo(ui.End(ui.Done(headline)))
 	render.Echo("")
 }
 
@@ -122,59 +139,101 @@ func plural(n int) string {
 	return "s"
 }
 
-// pickFancy lists the hosts that already have Kemory, then asks which of the
-// others to connect with an arrow-key multi-select, every one ticked.
+// The answers to the first question.
+const (
+	connectAll = "all"
+	chooseSome = "choose"
+	cancelPick = "cancel"
+)
+
+const pickQuestion = "Which AI clients should Kemory connect?"
+
+// pickFancy lists every client found here with its Kemory state and logo,
+// then asks one question: connect every ready client, choose some, or stop.
 func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
-	var options []huh.Option[string]
-	var connected []pickRow
+	var ready []pickRow
+	render.Echo(ui.Rail(""))
+	render.Echo(ui.Rail(ui.Bold("AI clients on this machine")))
 	for _, r := range rows {
+		render.Echo(ui.Rail(ui.Detected(r.host, r.state == "ready", r.short)))
 		if r.state == "ready" {
-			options = append(options, huh.NewOption(ui.Label(r.host, r.short), r.host).Selected(true))
-		} else {
-			connected = append(connected, r)
+			ready = append(ready, r)
 		}
 	}
-	if len(connected) > 0 {
+	if n := len(missing); n > 0 {
+		render.Echo(ui.Rail(ui.Dim(fmt.Sprintf("%d more supported client%s not installed here", n, map[bool]string{true: " is", false: "s are"}[n == 1]))))
+	}
+	render.Echo(ui.Rail(""))
+	if len(ready) == 0 {
+		render.Echo(ui.End(ui.Done("Every AI client here already has Kemory.")))
 		render.Echo("")
-		render.Echo(ui.Heading("Already connected"))
-		for _, r := range connected {
-			render.Echo(ui.Connected(r.host, r.short))
-		}
-	}
-	render.Echo("")
-	if len(options) == 0 {
-		render.Echo(ui.Done("Every AI client found here is already connected."))
 		return nil, nil
 	}
-	description := ""
-	if n := len(missing); n > 0 {
-		description = fmt.Sprintf("%d more supported client%s not installed here", n, map[bool]string{true: " is", false: "s are"}[n == 1])
+
+	all := "Connect " + ui.Name(ready[0].host)
+	if len(ready) > 1 {
+		all = fmt.Sprintf("Connect all %d ready clients", len(ready))
 	}
-	var picked []string
-	field := huh.NewMultiSelect[string]().
-		Title("Which AI clients should Kemory connect?").
-		Description(description).
-		Options(options...).
-		Value(&picked)
-	keys := huh.NewDefaultKeyMap()
-	keys.MultiSelect.Toggle = key.NewBinding(key.WithKeys(" ", "x"), key.WithHelp("space", "toggle"))
-	keys.MultiSelect.Filter = key.NewBinding(key.WithDisabled())
-	// The form's height is set, not taken from the terminal: some terminals
-	// (Warp) report a short height at first, and huh would keep the list
-	// that short, scrolling the first clients out of sight.
-	height := 1 + len(options) + 1 // title, options and the help below them
-	if description != "" {
-		height++
-	}
-	err := huh.NewForm(huh.NewGroup(field)).WithTheme(ui.Theme()).WithKeyMap(keys).WithOutput(render.Err).WithHeight(height).Run()
-	if errors.Is(err, huh.ErrUserAborted) {
-		return nil, exits.New("Cancelled; nothing was changed.", exits.Failure)
-	}
+	choice := connectAll
+	err := s.ask(huh.NewSelect[string]().
+		Title(pickQuestion).
+		Description("↑↓ to move · enter to confirm").
+		Options(huh.NewOption(all, connectAll), huh.NewOption("Choose clients…", chooseSome), huh.NewOption("Cancel", cancelPick)).
+		Value(&choice), 3)
 	if err != nil {
 		return nil, err
 	}
-	if len(picked) == 0 {
-		render.Muted(" Nothing selected; nothing was changed.")
+	var picked []string
+	switch choice {
+	case cancelPick:
+		return nil, s.cancelled()
+	case connectAll:
+		for _, r := range ready {
+			picked = append(picked, r.host)
+		}
+		render.Echo(ui.Answered(pickQuestion, all))
+	case chooseSome:
+		var options []huh.Option[string]
+		for _, r := range ready {
+			options = append(options, huh.NewOption(ui.Option(r.host, r.short), r.host).Selected(true))
+		}
+		field := huh.NewMultiSelect[string]().Title(pickQuestion).Description("space to toggle · enter to confirm").Options(options...).Value(&picked)
+		if err := s.ask(field, len(options)); err != nil {
+			return nil, err
+		}
+		if len(picked) == 0 {
+			return nil, s.cancelled()
+		}
+		names := make([]string, len(picked))
+		for i, h := range picked {
+			names[i] = ui.Name(h)
+		}
+		render.Echo(ui.Answered(pickQuestion, listJoin(names)))
 	}
 	return picked, nil
+}
+
+// ask runs one prompt on the rail. Its height is set from its options, not
+// taken from the terminal: some terminals (Warp) report a short height at
+// first, and huh would keep the list that short, scrolling clients out of
+// sight.
+func (s *screen) ask(field huh.Field, options int) error {
+	keys := huh.NewDefaultKeyMap()
+	keys.MultiSelect.Toggle = key.NewBinding(key.WithKeys(" ", "x"), key.WithHelp("space", "toggle"))
+	keys.MultiSelect.Filter = key.NewBinding(key.WithDisabled())
+	keys.Select.Filter = key.NewBinding(key.WithDisabled())
+	err := huh.NewForm(huh.NewGroup(field)).
+		WithTheme(ui.Theme()).WithKeyMap(keys).WithOutput(render.Err).WithShowHelp(false).
+		WithHeight(2 + options). // title, hint and options
+		Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		return s.cancelled()
+	}
+	return err
+}
+
+func (s *screen) cancelled() error {
+	render.Echo(ui.End(ui.Dim("Cancelled; nothing was changed.")))
+	render.Echo("")
+	return exits.New("", exits.Failure)
 }

@@ -113,7 +113,10 @@ func Execute(args []string) int {
 	if !errors.As(err, &e) && isUsageError(err) {
 		code = exits.Usage
 	}
-	render.Error(err.Error())
+	// An error with no message has said what happened already.
+	if msg := err.Error(); msg != "" {
+		render.Error(msg)
+	}
 	return code
 }
 

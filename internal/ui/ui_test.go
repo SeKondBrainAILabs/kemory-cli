@@ -24,22 +24,57 @@ func TestGradientEndsAtItsStops(t *testing.T) {
 	}
 }
 
-func TestEveryClientHasANameAndIcon(t *testing.T) {
+func TestEveryClientHasANameTileAndLogo(t *testing.T) {
 	for host, c := range clients {
-		if Name(host) != c.name || !strings.Contains(Icon(host), c.glyph) {
-			t.Fatalf("%s: %q %q", host, Name(host), Icon(host))
+		if Name(host) != c.name || !strings.Contains(tile(host), c.glyph) {
+			t.Fatalf("%s: %q %q", host, Name(host), tile(host))
+		}
+		if _, err := iconFiles.ReadFile("icons/" + host + ".png"); err != nil {
+			t.Fatalf("%s has no logo: %v", host, err)
 		}
 	}
-	if Name("unknown") != "unknown" || !strings.Contains(Icon("unknown"), "•") {
-		t.Fatal("an unknown host still gets a name and an icon")
+	if Name("unknown") != "unknown" || !strings.Contains(tile("unknown"), "•") {
+		t.Fatal("an unknown host still gets a name and a tile")
 	}
 }
 
-func TestSummaryListsEveryStep(t *testing.T) {
-	s := Summary("Kemory is connected", []string{"Restart Cursor", "Run /hooks in Codex"})
-	for _, want := range []string{"Kemory is connected", "Restart Cursor", "Run /hooks in Codex", "╭", "╯"} {
-		if !strings.Contains(s, want) {
-			t.Fatalf("missing %q in:\n%s", want, s)
+func TestImagesOnlyWhereTheTerminalDrawsThem(t *testing.T) {
+	cases := []struct {
+		env  map[string]string
+		want imageProtocol
+	}{
+		{map[string]string{"TERM_PROGRAM": "iTerm.app"}, itermImages},
+		{map[string]string{"TERM_PROGRAM": "WezTerm"}, itermImages},
+		{map[string]string{"TERM": "xterm-kitty"}, kittyImages},
+		{map[string]string{"TERM": "xterm-ghostty"}, kittyImages},
+		{map[string]string{"TERM_PROGRAM": "Apple_Terminal"}, noImages},
+		{map[string]string{"TERM_PROGRAM": "WarpTerminal"}, noImages},
+		{map[string]string{"TERM_PROGRAM": "WarpTerminal", "KEMORY_ICONS": "1"}, itermImages},
+		{map[string]string{"TERM_PROGRAM": "iTerm.app", "TMUX": "/tmp/t"}, noImages},
+		{map[string]string{"TERM_PROGRAM": "iTerm.app", "KEMORY_ICONS": "0"}, noImages},
+	}
+	for _, c := range cases {
+		if got := detectImages(func(k string) string { return c.env[k] }); got != c.want {
+			t.Fatalf("%v: got %d, want %d", c.env, got, c.want)
 		}
+	}
+}
+
+func TestLogoSpeaksEachProtocol(t *testing.T) {
+	old := images
+	t.Cleanup(func() { images = old })
+
+	images = itermImages
+	if l := Logo("cursor"); !strings.HasPrefix(l, "\x1b]1337;File=inline=1;width=2;height=1;") || !strings.HasSuffix(l, "\a") {
+		t.Fatalf("iTerm2: %.60q", l)
+	}
+	images = kittyImages
+	l := Logo("claude-desktop") // over 4096 base64 bytes, so chunked
+	if !strings.HasPrefix(l, "\x1b_Ga=T,f=100,c=2,r=1,q=2,m=1;") || !strings.Contains(l, "\x1b_Gm=0;") {
+		t.Fatalf("kitty: %.60q", l)
+	}
+	images = noImages
+	if Logo("cursor") != tile("cursor") {
+		t.Fatal("without images the tile is drawn")
 	}
 }

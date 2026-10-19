@@ -111,25 +111,67 @@ func Name(host string) string {
 	return host
 }
 
-// Icon is a host's coloured tile, four columns wide.
-func Icon(host string) string {
+// tile is a host's monogram tile, two columns wide, for terminals that
+// cannot draw its logo.
+func tile(host string) string {
 	c, ok := clients[host]
 	if !ok {
 		c = client{glyph: "•", bg: Purple, fg: white}
 	}
-	return lipgloss.NewStyle().Background(c.bg).Foreground(c.fg).Bold(true).Width(4).Align(lipgloss.Center).Render(c.glyph)
+	return lipgloss.NewStyle().Background(c.bg).Foreground(c.fg).Bold(true).Width(2).Render(c.glyph)
 }
 
-// Label is a host's icon, name and status for a list row.
-func Label(host, status string) string {
-	name := lipgloss.NewStyle().Bold(true).Width(16).Render(Name(host))
-	return Icon(host) + " " + name + lipgloss.NewStyle().Foreground(Muted).Render(status)
+// The rail runs down the left of the guided screen, as in clack's prompts:
+// ┌ opens it, │ carries each line, ◇ marks an answered question and └
+// closes it.
+var railStyle = lipgloss.NewStyle().Foreground(Purple)
+
+// Start opens the rail with text.
+func Start(text string) string { return railStyle.Render("┌") + "  " + text }
+
+// Rail is a line on the rail.
+func Rail(text string) string {
+	if text == "" {
+		return railStyle.Render("│")
+	}
+	return railStyle.Render("│") + "  " + text
 }
+
+// Answered is a question and its answer, once given.
+func Answered(question, answer string) string {
+	return railStyle.Render("◇") + "  " + question + "\n" + Rail(dim.Render(answer))
+}
+
+// End closes the rail with text.
+func End(text string) string { return railStyle.Render("└") + "  " + text }
 
 var (
+	dim   = lipgloss.NewStyle().Foreground(Muted)
+	bold  = lipgloss.NewStyle().Bold(true)
 	check = lipgloss.NewStyle().Foreground(Mint).Bold(true).Render("✓")
 	cross = lipgloss.NewStyle().Foreground(Orange).Bold(true).Render("✗")
 )
+
+// Dim is secondary text.
+func Dim(text string) string { return dim.Render(text) }
+
+// Bold is emphasised text.
+func Bold(text string) string { return bold.Render(text) }
+
+// Detected is a row of the detected-clients list: its state, logo, name
+// and what Kemory gives it.
+func Detected(host string, ready bool, status string) string {
+	tag := lipgloss.NewStyle().Foreground(Muted).Width(12).Render("[connected]")
+	if ready {
+		tag = lipgloss.NewStyle().Foreground(Mint).Width(12).Render("[ready]")
+	}
+	return tag + Logo(host) + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
+}
+
+// Option is a host as a choice in a prompt, where logos cannot be drawn.
+func Option(host, status string) string {
+	return lipgloss.NewStyle().Width(16).Render(Name(host)) + dim.Render(status)
+}
 
 // Result is a finished row: a mark, the host and what happened.
 func Result(host string, ok bool, detail string) string {
@@ -137,52 +179,35 @@ func Result(host string, ok bool, detail string) string {
 	if !ok {
 		mark = cross
 	}
-	return " " + mark + " " + Icon(host) + " " + lipgloss.NewStyle().Bold(true).Width(16).Render(Name(host)) +
-		lipgloss.NewStyle().Foreground(Muted).Render(detail)
+	return mark + " " + Logo(host) + " " + bold.Width(16).Render(Name(host)) + dim.Render(detail)
 }
 
-// Connected is a row for a host that already has Kemory, shown apart from
-// the choices.
-func Connected(host, status string) string {
-	return " " + check + " " + Icon(host) + " " + lipgloss.NewStyle().Width(16).Render(Name(host)) +
-		lipgloss.NewStyle().Foreground(Muted).Render(status)
-}
+// Done is a success line.
+func Done(text string) string { return check + " " + text }
 
-// Heading is a small section heading.
-func Heading(text string) string {
-	return " " + lipgloss.NewStyle().Foreground(Muted).Bold(true).Render(text)
-}
+// Step is a next step for the user.
+func Step(text string) string { return lipgloss.NewStyle().Foreground(Pink).Render("→") + " " + text }
 
-// Done is a top-level success line.
-func Done(text string) string { return " " + check + " " + text }
-
-// Summary is the closing box: a headline and the next steps.
-func Summary(headline string, steps []string) string {
-	body := lipgloss.NewStyle().Bold(true).Foreground(Purple).Render(headline)
-	for _, s := range steps {
-		body += "\n" + lipgloss.NewStyle().Foreground(Pink).Render("→ ") + s
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(Purple).
-		Padding(0, 2).
-		MarginLeft(1).
-		Render(body)
-}
-
-// Theme is the picker's look, in Kemory's colours.
+// Theme is the prompts' look: on the rail, in Kemory's colours.
 func Theme() *huh.Theme {
-	t := huh.ThemeCharm()
-	t.Focused.Title = t.Focused.Title.Foreground(Purple).Bold(true)
-	t.Focused.Description = t.Focused.Description.Foreground(Muted)
-	t.Focused.MultiSelectSelector = t.Focused.MultiSelectSelector.Foreground(Pink).SetString("› ")
-	t.Focused.SelectedPrefix = lipgloss.NewStyle().Foreground(Mint).SetString("◉ ")
-	t.Focused.UnselectedPrefix = lipgloss.NewStyle().Foreground(Muted).SetString("○ ")
+	t := huh.ThemeBase()
+	t.Focused.Base = lipgloss.NewStyle().
+		Border(lipgloss.Border{Left: "│"}, false, false, false, true).
+		BorderForeground(Purple).
+		PaddingLeft(2)
+	t.Focused.Title = lipgloss.NewStyle().Bold(true)
+	t.Focused.Description = dim
+	t.Focused.SelectSelector = lipgloss.NewStyle().Foreground(Pink).SetString("● ")
+	t.Focused.Option = dim
 	t.Focused.SelectedOption = lipgloss.NewStyle()
-	t.Focused.UnselectedOption = lipgloss.NewStyle()
-	t.Focused.FocusedButton = t.Focused.FocusedButton.Background(Purple)
+	t.Focused.MultiSelectSelector = lipgloss.NewStyle().Foreground(Pink).SetString("› ")
+	t.Focused.SelectedPrefix = lipgloss.NewStyle().Foreground(Mint).SetString("◉ ")
+	t.Focused.UnselectedPrefix = dim.SetString("○ ")
+	t.Focused.UnselectedOption = dim
 	t.Blurred = t.Focused
-	t.Group.Title = t.Focused.Title
+	t.Help.ShortKey = dim
+	t.Help.ShortDesc = dim
+	t.Help.ShortSeparator = dim
 	return t
 }
 
@@ -198,7 +223,7 @@ func Spin(w io.Writer, title string, work func()) {
 		tick := time.NewTicker(80 * time.Millisecond)
 		defer tick.Stop()
 		for i := 0; ; i++ {
-			fmt.Fprintf(w, "\r %s %s", style.Render(frames[i%len(frames)]), title)
+			fmt.Fprintf(w, "\r%s", Rail(style.Render(frames[i%len(frames)])+" "+title))
 			select {
 			case <-done:
 				fmt.Fprint(w, "\r\033[2K")
