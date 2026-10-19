@@ -225,7 +225,8 @@ func newKeysCmd(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := api.Get(creds, "/api/v1/agents")
+			var resp *api.Response
+			loading("Loading your keys…", func() { resp, err = api.Get(creds, "/api/v1/agents") })
 			if err != nil {
 				return err
 			}
@@ -416,7 +417,9 @@ func newUpgradeCmd() *cobra.Command {
 		RunE: func(*cobra.Command, []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			latest, err := releases.Latest(ctx)
+			var latest string
+			var err error
+			loading("Checking for a newer version…", func() { latest, err = releases.Latest(ctx) })
 			if err != nil {
 				return exits.New("could not check for releases: "+err.Error(), exits.Network)
 			}

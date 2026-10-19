@@ -37,7 +37,8 @@ func newOrgsCmd(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := api.Get(creds, "/api/v1/me/orgs")
+			var resp *api.Response
+			loading("Loading your organisations…", func() { resp, err = api.Get(creds, "/api/v1/me/orgs") })
 			if err != nil {
 				return err
 			}

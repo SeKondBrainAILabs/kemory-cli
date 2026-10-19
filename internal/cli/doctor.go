@@ -99,12 +99,21 @@ func (d *doctor) run() error {
 	}
 	render.Echo("")
 
-	d.checkCredentials(creds)
-	d.checkReachable(kemoryURL)
-	fresh := d.checkRefresh(creds)
-	d.checkRoundTrip(fresh, kemoryURL)
-	fixHint := d.checkHosts(fresh)
-	d.checkFreshness()
+	var fixHint bool
+	checks := func() {
+		d.checkCredentials(creds)
+		d.checkReachable(kemoryURL)
+		fresh := d.checkRefresh(creds)
+		d.checkRoundTrip(fresh, kemoryURL)
+		fixHint = d.checkHosts(fresh)
+		d.checkFreshness()
+	}
+	if d.fix {
+		// --fix may ask before it changes anything; no spinner over that.
+		checks()
+	} else {
+		loading("Checking your setup…", checks)
+	}
 
 	if render.JSONMode() {
 		ok := true

@@ -100,7 +100,9 @@ func memoryPath(id string) string { return "/api/v1/memories/" + url.PathEscape(
 // fetchMemory GETs one memory and turns its two predictable failures into
 // sentences. The server parses the id as a UUID, so a 422 is always a typo.
 func fetchMemory(creds *config.Credentials, id string) (map[string]any, []byte, error) {
-	resp, err := api.Get(creds, memoryPath(id))
+	var resp *api.Response
+	var err error
+	loading("Loading the memory…", func() { resp, err = api.Get(creds, memoryPath(id)) })
 	if err != nil {
 		return nil, nil, err
 	}
@@ -587,7 +589,8 @@ func newNamespacesCmd(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := api.Get(creds, "/api/v1/namespaces")
+			var resp *api.Response
+			loading("Loading your namespaces…", func() { resp, err = api.Get(creds, "/api/v1/namespaces") })
 			if err != nil {
 				return err
 			}
@@ -632,7 +635,8 @@ func newNamespacesCmd(g *globals) *cobra.Command {
 				return err
 			}
 			path := "/api/v1/namespaces/" + url.PathEscape(args[0]) + "/summary"
-			resp, err := api.Request(creds, "GET", path, nil, writeTimeout)
+			var resp *api.Response
+			loading("Loading the namespace…", func() { resp, err = api.Request(creds, "GET", path, nil, writeTimeout) })
 			if err != nil {
 				return err
 			}

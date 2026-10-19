@@ -266,7 +266,7 @@ func styledTable(w io.Writer, title string, columns []string, rows [][]string) {
 		for total > tw-1 {
 			widest := -1
 			for i, cw := range widths {
-				if strings.EqualFold(columns[i], "ID") || cw <= 12 {
+				if strings.HasSuffix(strings.ToUpper(columns[i]), "ID") || cw <= 12 {
 					continue
 				}
 				if widest < 0 || cw > widths[widest] {

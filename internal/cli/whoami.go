@@ -66,7 +66,8 @@ func newWhoamiCmd(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := api.Get(creds, "/api/v1/me")
+			var resp *api.Response
+			loading("Loading your account…", func() { resp, err = api.Get(creds, "/api/v1/me") })
 			if err != nil {
 				return err
 			}

@@ -223,7 +223,8 @@ func newStatsMemoriesCmd(g *globals) *cobra.Command {
 				"never_recalled": {strconv.FormatBool(neverRecalled)}, "rated_down": {strconv.FormatBool(ratedDown)},
 			}
 			path := "/api/v1/analytics/recall/memories?" + q.Encode()
-			resp, err := api.Request(creds, "GET", path, nil, statsTimeout)
+			var resp *api.Response
+			loading("Loading your memory stats…", func() { resp, err = api.Request(creds, "GET", path, nil, statsTimeout) })
 			if err != nil {
 				return err
 			}
