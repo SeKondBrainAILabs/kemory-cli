@@ -100,6 +100,16 @@ async function install(version, target, dir, platform) {
   }
 }
 
+// launcherFor names how this package was started, from where it is installed:
+// "npm" for a global install, which leaves `kemory` on PATH, and "npx" for
+// npx's cache or a project's node_modules, where nothing called `kemory` lasts.
+function launcherFor(dir) {
+  const p = dir.split(path.sep).join("/");
+  if (p.includes("/_npx/")) return "npx";
+  if (/\/lib\/node_modules\/kemory(\/|$)/.test(p) || /\/npm\/node_modules\/kemory(\/|$)/i.test(p)) return "npm";
+  return "npx";
+}
+
 async function main() {
   const { version } = require("../package.json");
   const target = resolveTarget(process.platform, process.arch);
@@ -114,11 +124,13 @@ async function main() {
   const bin = path.join(dir, binaryName(process.platform));
   if (!fs.existsSync(bin)) await install(version, target, dir, process.platform);
 
-  // KEMORY_LAUNCHER tells the CLI it was started through npx, so the MCP host
-  // entry it writes launches through npx too: nothing called `kemory` is on PATH.
+  // KEMORY_LAUNCHER tells the CLI how it was started: through npx, the MCP
+  // host entry it writes launches through npx too, since nothing called
+  // `kemory` is on PATH; from a global npm install, `kemory upgrade` knows to
+  // upgrade with npm.
   const child = spawn(bin, process.argv.slice(2), {
     stdio: "inherit",
-    env: { ...process.env, KEMORY_LAUNCHER: "npx" },
+    env: { ...process.env, KEMORY_LAUNCHER: launcherFor(__dirname) },
   });
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));
@@ -142,4 +154,4 @@ if (require.main === module) {
   );
 }
 
-module.exports = { resolveTarget, cacheRoot, parseSha256, binaryName, install };
+module.exports = { resolveTarget, cacheRoot, parseSha256, binaryName, install, launcherFor };

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -348,22 +349,34 @@ func newBrowseCmd(g *globals) *cobra.Command {
 // --- upgrade ---------------------------------------------------------------------
 
 // installChannel says how this binary was installed and the command that
-// upgrades it. The CLI never replaces its own binary: every channel has an
-// installer that already does that safely.
+// upgrades it. The CLI never replaces its own binary: it runs the installer
+// that put it there, which already does that safely. argv is that command
+// when kemory may run it, nil when it only shows it.
 type installChannel struct {
 	name, command string
+	argv          []string
+}
+
+// runUpgrade runs an upgrade command in the terminal. Overridable in tests.
+var runUpgrade = func(argv []string) error {
+	c := exec.Command(argv[0], argv[1:]...) //nolint:gosec // argv is one of the fixed upgrade commands below
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, render.Out, render.Err
+	return c.Run()
 }
 
 // executablePath is the running binary. Overridable in tests.
 var executablePath = os.Executable
 
 func detectChannel() installChannel {
-	if os.Getenv("KEMORY_LAUNCHER") == "npx" {
-		return installChannel{"npx", "npx always runs the newest release; nothing to upgrade (pin a version with `npx kemory@<version>`)."}
+	switch os.Getenv("KEMORY_LAUNCHER") {
+	case "npx":
+		return installChannel{"npx", "npx always runs the newest release; nothing to upgrade (pin a version with `npx kemory@<version>`).", nil}
+	case "npm":
+		return installChannel{"npm", "npm install -g kemory@latest", []string{"npm", "install", "-g", "kemory@latest"}}
 	}
 	exe, err := executablePath()
 	if err != nil {
-		return installChannel{"unknown", ""}
+		return installChannel{"unknown", "", nil}
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
@@ -371,31 +384,33 @@ func detectChannel() installChannel {
 	p := filepath.ToSlash(exe)
 	switch {
 	case strings.Contains(p, "/archive-v") && os.Getenv("UV") != "":
-		return installChannel{"uvx", "uvx kemory@latest"}
+		return installChannel{"uvx", "uvx kemory@latest", nil}
 	case strings.Contains(p, "/Cellar/kemory/") || strings.Contains(p, "/homebrew/") || strings.Contains(p, "/linuxbrew/"):
-		return installChannel{"Homebrew", "brew upgrade kemory"}
+		return installChannel{"Homebrew", "brew upgrade kemory", []string{"brew", "upgrade", "kemory"}}
 	case strings.Contains(p, "/uv/tools/kemory/"):
-		return installChannel{"uv", "uv tool upgrade kemory"}
+		return installChannel{"uv", "uv tool upgrade kemory", []string{"uv", "tool", "upgrade", "kemory"}}
 	case strings.Contains(p, "/pipx/venvs/kemory/"):
-		return installChannel{"pipx", "pipx upgrade kemory"}
+		return installChannel{"pipx", "pipx upgrade kemory", []string{"pipx", "upgrade", "kemory"}}
 	case strings.Contains(p, "/node_modules/kemory/"):
-		return installChannel{"npm", "npm install -g kemory@latest"}
+		return installChannel{"npm", "npm install -g kemory@latest", []string{"npm", "install", "-g", "kemory@latest"}}
 	case strings.Contains(p, "/site-packages/") || strings.Contains(p, "/bin/python"):
-		return installChannel{"pip", "pip install --upgrade kemory"}
+		// Which pip owns this environment is not certain, so it is shown, not run.
+		return installChannel{"pip", "pip install --upgrade kemory", nil}
 	}
-	return installChannel{"manual", ""}
+	return installChannel{"manual", "", nil}
 }
 
 const releasesPage = "https://github.com/SeKondBrainAILabs/homebrew-s9n/releases"
 
 func newUpgradeCmd() *cobra.Command {
-	var check bool
+	var check, yes bool
 	cmd := &cobra.Command{
 		Use:   "upgrade",
-		Short: "Check for a newer CLI and show how to install it.",
-		Long: "Check for a newer CLI release and print the command that upgrades this\n" +
-			"install (Homebrew, npm/npx, uv/uvx, pipx or pip). The CLI never replaces\n" +
-			"its own binary.",
+		Short: "Upgrade the CLI to the newest release.",
+		Long: "Check for a newer CLI release and upgrade this install with the tool that\n" +
+			"installed it: Homebrew, npm, uv or pipx, after asking (--yes skips the\n" +
+			"question). For pip it prints the command; npx and uvx always run the\n" +
+			"newest release. The CLI never replaces its own binary.",
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -428,6 +443,17 @@ func newUpgradeCmd() *cobra.Command {
 				render.Echo("A newer version is available. Run `kemory upgrade` to see how to install it.")
 			case channel.command == "":
 				render.Echo(fmt.Sprintf("Download %s for %s/%s from %s/tag/cli-v%s", latest, runtime.GOOS, runtime.GOARCH, releasesPage, latest))
+			case channel.argv != nil && (yes || stdinIsTerminal()):
+				if !yes && !confirm(fmt.Sprintf("Installed with %s. Upgrade to %s now with `%s`?", channel.name, latest, channel.command)) {
+					render.Muted("Not upgraded. Run `" + channel.command + "` when you are ready.")
+					return nil
+				}
+				render.Muted("Running " + channel.command + " …")
+				if err := runUpgrade(channel.argv); err != nil {
+					return exits.New(fmt.Sprintf("%s failed (%v). Run it yourself: %s", channel.name, err, channel.command), exits.Failure)
+				}
+				render.Echo("")
+				render.Success(fmt.Sprintf("Upgraded to %s. Check with `kemory --version`.", latest))
 			default:
 				render.Echo(fmt.Sprintf("Installed with %s. Upgrade with:\n\n    %s", channel.name, channel.command))
 			}
@@ -435,11 +461,6 @@ func newUpgradeCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "Only say whether a newer version is available.")
-	// Accepted for scripts written against the Python CLI, whose upgrade
-	// installed after a confirmation. This one installs nothing, so there is
-	// nothing to confirm.
-	var yes bool
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Accepted for compatibility; upgrade never installs anything.")
-	_ = cmd.Flags().MarkHidden("yes")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Upgrade without asking.")
 	return cmd
 }

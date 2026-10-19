@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { resolveTarget, cacheRoot, parseSha256, binaryName, install } = require("../bin/kemory.js");
+const { resolveTarget, cacheRoot, parseSha256, binaryName, install, launcherFor } = require("../bin/kemory.js");
 
 test("every supported platform maps to a release asset", () => {
   assert.deepEqual(resolveTarget("darwin", "arm64"), { name: "macos-arm64", ext: "tar.gz" });
@@ -56,4 +56,13 @@ test("a checksum mismatch installs nothing", async (t) => {
   const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "kemory-npx-")), "9.9.9", "linux-x64");
   await assert.rejects(install("9.9.9", { name: "linux-x64", ext: "tar.gz" }, dir, "linux"), /checksum mismatch/);
   assert.equal(fs.existsSync(dir), false);
+});
+
+test("a global npm install is npm; npx's cache and a project's node_modules are npx", () => {
+  const p = (...parts) => parts.join(path.sep);
+  assert.equal(launcherFor(p("", "Users", "k", ".nvm", "versions", "node", "v24", "lib", "node_modules", "kemory", "bin")), "npm");
+  assert.equal(launcherFor(p("", "usr", "local", "lib", "node_modules", "kemory", "bin")), "npm");
+  assert.equal(launcherFor(p("C:", "Users", "k", "AppData", "Roaming", "npm", "node_modules", "kemory", "bin")), "npm");
+  assert.equal(launcherFor(p("", "Users", "k", ".npm", "_npx", "a1b2", "node_modules", "kemory", "bin")), "npx");
+  assert.equal(launcherFor(p("", "work", "app", "node_modules", "kemory", "bin")), "npx");
 });

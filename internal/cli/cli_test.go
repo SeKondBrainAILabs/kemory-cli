@@ -47,6 +47,10 @@ func setHome(t *testing.T) string {
 		return nil, nil
 	}
 	t.Cleanup(func() { lookPath, runTool = look, runner })
+	// No test runs a real package manager either.
+	upgrader := runUpgrade
+	runUpgrade = func(argv []string) error { t.Fatalf("a test ran %v", argv); return nil }
+	t.Cleanup(func() { runUpgrade = upgrader })
 	// The guided screen needs a real terminal; tests get plain output.
 	width := terminalWidth
 	terminalWidth = func() int { return 0 }

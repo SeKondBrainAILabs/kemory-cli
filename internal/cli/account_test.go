@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -187,5 +188,32 @@ func TestUpgradeCheckDoesNotClaimANewerVersionItCannotCompare(t *testing.T) {
 	_, out, _ := run(t, "upgrade", "--check")
 	if strings.Contains(out, "A newer version is available") || !strings.Contains(out, "Could not tell") {
 		t.Fatalf("got:\n%s", out)
+	}
+}
+
+func TestUpgradeRunsTheInstallersOwnCommand(t *testing.T) {
+	setHome(t)
+	fakeReleases(t, `[{"tag_name": "cli-v9.9.9", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`)
+	t.Setenv("KEMORY_LAUNCHER", "npm")
+	var ran []string
+	runUpgrade = func(argv []string) error { ran = argv; return nil }
+
+	code, out, _ := run(t, "upgrade", "--yes")
+	if code != 0 || strings.Join(ran, " ") != "npm install -g kemory@latest" || !strings.Contains(out, "Upgraded to 9.9.9") {
+		t.Fatalf("got %d %v\n%s", code, ran, out)
+	}
+
+	ran = nil
+	interactive := stdinIsTerminal
+	t.Cleanup(func() { stdinIsTerminal = interactive })
+	withStdin(t, "n\n")
+	stdinIsTerminal = func() bool { return true }
+	if _, out, _ := run(t, "upgrade"); ran != nil || !strings.Contains(out, "Not upgraded") {
+		t.Fatalf("declining must not upgrade: %v\n%s", ran, out)
+	}
+
+	runUpgrade = func([]string) error { return errors.New("exit status 1") }
+	if code, _, errOut := run(t, "upgrade", "--yes"); code == 0 || !strings.Contains(errOut, "npm install -g kemory@latest") {
+		t.Fatalf("a failed upgrade must say what to run: %d %q", code, errOut)
 	}
 }
