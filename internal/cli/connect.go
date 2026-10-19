@@ -33,6 +33,7 @@ func validateHosts(names []string) error {
 func newMCPInstallCmd(g *globals) *cobra.Command {
 	var hostNames []string
 	var configPath, name string
+	var dryRun bool
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Write the kemory MCP server entry into one or more MCP hosts.",
@@ -47,9 +48,10 @@ func newMCPInstallCmd(g *globals) *cobra.Command {
 			// Without a sign-in the claude.ai connector cannot be looked up,
 			// which only means it is not counted.
 			creds, _ := auth.ValidCredentials(g.env, false)
-			return installHosts(g, creds, hostNames, configPath, name)
+			return installHosts(g, creds, hostNames, configPath, name, dryRun)
 		},
 	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would change for each host, and change nothing.")
 	cmd.Flags().StringSliceVar(&hostNames, "host", []string{"claude-code"}, "MCP host(s) to configure: "+hostChoices()+".")
 	cmd.Flags().StringVar(&configPath, "config", "", "Write to this config file, in the --host's format, instead of the host's own.")
 	cmd.Flags().StringVar(&name, "name", "", "Server name in the host's config (default: the env's, so envs don't collide).")
@@ -61,7 +63,7 @@ type hostResult struct {
 	ok           bool
 }
 
-func installHosts(g *globals, creds *config.Credentials, hostNames []string, configPath, name string) error {
+func installHosts(g *globals, creds *config.Credentials, hostNames []string, configPath, name string, dryRun bool) error {
 	if name == "" {
 		name = g.profile.ServerName
 	}
@@ -69,6 +71,10 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 	if configPath != "" {
 		if len(hostNames) != 1 || hostNames[0] == hostAll {
 			return exits.New("--config takes exactly one --host, whose config format it uses", exits.Usage)
+		}
+		if dryRun {
+			render.Success(fmt.Sprintf("→ would write MCP server entry '%s' into %s", name, configPath))
+			return nil
 		}
 		if err := hosts.WriteEntry(hostNames[0], configPath, name, launch); err != nil {
 			return exits.New(err.Error(), exits.Failure)
@@ -111,6 +117,10 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 	written := map[string]bool{}
 	var lines []hostResult
 	for _, h := range targets {
+		if dryRun {
+			lines = append(lines, planned(g.env, h, covered))
+			continue
+		}
 		// A second entry would give the host every Kemory tool twice.
 		if reason := covered[h]; reason != "" {
 			lines = append(lines, hostResult{host: h, detail: "already " + reason + " — nothing written", ok: true})
@@ -136,11 +146,19 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 	}
 	lines = append(lines, results...)
 	for _, r := range lines {
-		if r.ok {
+		switch {
+		case dryRun && r.ok:
+			render.Echo(fmt.Sprintf("→ %-15s %s", r.host, r.detail))
+		case r.ok:
 			render.Success(fmt.Sprintf("✓ %-15s %s", r.host, r.detail))
-		} else {
+		default:
 			render.Warn(fmt.Sprintf("✗ %-15s %s", r.host, r.detail))
 		}
+	}
+	if dryRun {
+		render.Echo("")
+		render.Muted("Dry run: nothing was changed.")
+		return nil
 	}
 	if len(written) == 0 {
 		return nil
@@ -174,30 +192,44 @@ func contains(list []string, s string) bool {
 
 func newConnectCmd(g *globals) *cobra.Command {
 	var hostNames []string
-	var noBrowser, local bool
+	var noBrowser, local, dryRun bool
 	cmd := &cobra.Command{
 		Use:   "connect",
-		Short: "Connect an MCP host to Kemory in one command.",
-		Long: "Sign in when needed, write the MCP server entry, and check the connection.\n" +
-			"Safe to re-run: every step is idempotent.",
+		Short: "Connect your AI clients to Kemory in one command.",
+		Long: "Sign in when needed, connect your AI clients, and check the connection.\n" +
+			"In a terminal without --host it lists the clients it finds and asks which\n" +
+			"to connect. Safe to re-run: every step is idempotent.",
 		Args: cobra.NoArgs,
-		RunE: func(*cobra.Command, []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateHosts(hostNames); err != nil {
 				return err
 			}
-			return connect(g, hostNames, noBrowser, local)
+			pick := !cmd.Flags().Changed("host") && stdinIsTerminal() && !render.JSONMode()
+			return connect(g, hostNames, pick, noBrowser, local, dryRun)
 		},
 	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would change for each client, and change nothing.")
 	cmd.Flags().StringSliceVar(&hostNames, "host", []string{"claude-code"}, "MCP host(s) to configure: "+hostChoices()+".")
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Print the sign-in URL but don't open it.")
 	cmd.Flags().BoolVar(&local, "local", false, "Use a machine-local API key from KEMORY_API_KEY instead of signing in (dev mode).")
 	return cmd
 }
 
-func connect(g *globals, hostNames []string, noBrowser, local bool) error {
+func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool) error {
 	creds, err := auth.ValidCredentials(g.env, false)
 	if err != nil {
 		return err
+	}
+	if dryRun {
+		if creds == nil {
+			render.Muted(fmt.Sprintf("Dry run: would sign in to '%s' first.", g.env))
+		}
+		if pick {
+			if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {
+				return err
+			}
+		}
+		return installHosts(g, creds, hostNames, "", "", true)
 	}
 	if creds == nil {
 		render.Echo(fmt.Sprintf("No credentials for env '%s' — starting login…", g.env))
@@ -219,7 +251,12 @@ func connect(g *globals, hostNames []string, noBrowser, local bool) error {
 		render.Success(fmt.Sprintf("✓ Already logged in to '%s'", g.env))
 	}
 
-	if err := installHosts(g, creds, hostNames, "", ""); err != nil {
+	if pick {
+		if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {
+			return err
+		}
+	}
+	if err := installHosts(g, creds, hostNames, "", "", false); err != nil {
 		return err
 	}
 

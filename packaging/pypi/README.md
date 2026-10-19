@@ -5,10 +5,10 @@ The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persisten
 ## Connect your MCP clients in one command
 
 ```bash
-uvx kemory connect --host all
+uvx kemory connect
 ```
 
-This signs you in through the browser, writes the Kemory MCP server entry into every MCP client installed on this machine (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, Windsurf, Cline, Kiro, Grok, Continue, Warp and others), and checks that the connection works. Restart the clients it lists afterwards. Without `--host`, only Claude Code is connected; `--host codex` and so on pick one client. It is safe to re-run.
+This signs you in through the browser, lists the AI clients on this machine (Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, Windsurf, Cline, Kiro, Grok, Continue, Warp and others) with their Kemory status, and asks which to connect; Enter takes every one that is ready. Claude Code and Grok Build get the Kemory plugin, which saves sessions automatically; the others get an MCP entry. It then checks the connection. Restart the clients it lists afterwards. `--dry-run` shows what would change; `--host all` or `--host codex` skip the question. It is safe to re-run.
 
 This package contains the native `kemory` binary for your platform (macOS, Linux or Windows x64); it has no Python dependencies.
 

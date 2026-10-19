@@ -13,20 +13,23 @@ Code, Codex, Cursor and VS Code to your vault, and runs the MCP bridge they use.
 
 You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sekondbrain.ai).
 
-1. Connect every MCP client on this machine. Nothing to install first:
+1. Connect your AI clients. Nothing to install first:
 
    ```bash
-   npx kemory connect --host all   # Node.js 18+
-   uvx kemory connect --host all   # or with uv
+   npx kemory connect   # Node.js 18+
+   uvx kemory connect   # or with uv
    ```
 
-   Your browser opens to sign in, then the kemory entry is written into each
-   client's config and the connection is checked.
+   Your browser opens to sign in. kemory then lists the AI clients on this
+   machine with their Kemory status and asks which to connect; Enter takes
+   every one that is ready. Claude Code and Grok Build get the Kemory plugin,
+   the others an MCP entry, and the connection is checked.
 2. Restart the clients it lists. Warp picks the change up without a restart.
 3. Check the setup end to end at any time with `kemory doctor`.
 
-Name one client instead of `all` with `--host claude-code`, `--host codex` and
-so on; [MCP clients](#mcp-clients) lists them.
+`--dry-run` shows what would change without changing anything. In scripts,
+name the clients instead: `--host all`, or `--host claude-code`, `--host codex`
+and so on ([MCP clients](#mcp-clients) lists them); kemory then asks nothing.
 
 ## Install
 
