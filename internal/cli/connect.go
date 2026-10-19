@@ -268,10 +268,14 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 		return err
 	}
 	if dryRun {
-		if creds == nil {
+		switch {
+		case creds == nil && g.screen != nil:
+			g.screen.railOpen = true
+			render.Echo(ui.Start(ui.Dim("Not signed in: a real run signs you in first")))
+		case creds == nil:
 			render.Muted(fmt.Sprintf("Dry run: would sign in to '%s' first.", g.env))
-		} else {
-			g.screen.signedIn(creds.Email, g.env)
+		default:
+			g.screen.signedIn(g, creds)
 		}
 		if pick {
 			if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {
@@ -282,7 +286,9 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 	}
 	switch {
 	case creds == nil:
-		render.Echo(fmt.Sprintf("No credentials for env '%s' — starting login…", g.env))
+		if g.screen == nil {
+			render.Echo(fmt.Sprintf("No credentials for env '%s' — starting login…", g.env))
+		}
 		if local {
 			err = loginLocal(g)
 		} else {
@@ -300,7 +306,7 @@ func connect(g *globals, hostNames []string, pick, noBrowser, local, dryRun bool
 	case g.screen == nil:
 		render.Success(fmt.Sprintf("✓ Already logged in to '%s'", g.env))
 	}
-	g.screen.signedIn(creds.Email, g.env)
+	g.screen.signedIn(g, creds)
 
 	if pick {
 		if hostNames, err = pickHosts(g, creds); err != nil || len(hostNames) == 0 {

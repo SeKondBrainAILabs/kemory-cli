@@ -223,6 +223,27 @@ var OpenBrowser = openBrowser
 // Login runs the device flow with PKCE and saves the resulting credentials.
 // Messages for the user go to out.
 func Login(issuer, clientID, kemoryURL, env string, openBrowser bool, out io.Writer) (*config.Credentials, error) {
+	return LoginWith(issuer, clientID, kemoryURL, env, openBrowser, LoginUI{
+		ShowCode: func(uri, code string) {
+			fmt.Fprintf(out, "\nOpen this URL in any browser and enter the code:\n  %s\n  Code: %s\n\n", uri, code)
+		},
+		Wait: func(poll func()) {
+			fmt.Fprintln(out, "Waiting for approval... (Ctrl-C to cancel)")
+			poll()
+		},
+	})
+}
+
+// LoginUI is how the device flow talks to the user: ShowCode gives the URL
+// and code to enter, and Wait runs poll, which returns once the user has
+// approved, denied or let the code expire.
+type LoginUI struct {
+	ShowCode func(uri, code string)
+	Wait     func(poll func())
+}
+
+// LoginWith is Login with its messages drawn by ui.
+func LoginWith(issuer, clientID, kemoryURL, env string, openBrowser bool, ui LoginUI) (*config.Credentials, error) {
 	verifier, challenge, err := PKCEPair()
 	if err != nil {
 		return nil, err
@@ -231,12 +252,12 @@ func Login(issuer, clientID, kemoryURL, env string, openBrowser bool, out io.Wri
 	if err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(out, "\nOpen this URL in any browser and enter the code:\n  %s\n  Code: %s\n\n", dc.VerificationURI, dc.UserCode)
+	ui.ShowCode(dc.VerificationURI, dc.UserCode)
 	if openBrowser && !isHeadless() {
 		_ = OpenBrowser(dc.VerificationURIComplete)
 	}
-	fmt.Fprintln(out, "Waiting for approval... (Ctrl-C to cancel)")
-	tok, err := PollForToken(issuer, clientID, dc, verifier)
+	var tok *Token
+	ui.Wait(func() { tok, err = PollForToken(issuer, clientID, dc, verifier) })
 	if err != nil {
 		return nil, err
 	}

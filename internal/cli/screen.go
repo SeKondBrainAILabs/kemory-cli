@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/charmbracelet/huh"
 	"golang.org/x/term"
 
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/api"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
@@ -20,7 +24,9 @@ import (
 // closing summary. It exists only in an interactive, colour terminal; every
 // method is a no-op on a nil screen, so callers need not check.
 type screen struct {
-	width     int
+	width int
+	// railOpen is set once a line has opened the rail with ┌.
+	railOpen  bool
 	connected int
 	next      []string
 	restart   []string
@@ -64,16 +70,66 @@ func (s *screen) banner() {
 	}
 }
 
-// signedIn opens the rail with the account kemory connects for.
-func (s *screen) signedIn(email, env string) {
+// signedIn says which account and org kemory connects for, and the server
+// when it is not the default one.
+func (s *screen) signedIn(g *globals, creds *config.Credentials) {
 	if s == nil {
 		return
 	}
-	who := "Signed in to " + env
-	if email != "" {
-		who = "Signed in as " + email + ui.Dim(" · "+env)
+	who := "Signed in"
+	if creds.Email != "" {
+		who += " as " + creds.Email
 	}
+	if org := orgNameFor(creds); org != "" {
+		who += ui.Dim(" · " + org)
+	}
+	if g.env != config.DefaultEnv {
+		if u, err := url.Parse(creds.KemoryURL); err == nil && u.Host != "" {
+			who += ui.Dim(" · " + u.Host)
+		}
+	}
+	if s.railOpen {
+		render.Echo(ui.Rail(ui.Done(who)))
+		return
+	}
+	s.railOpen = true
 	render.Echo(ui.Start(who))
+}
+
+// orgNameFor is the name of the org creds act in, or "" when it cannot be
+// told.
+func orgNameFor(creds *config.Credentials) string {
+	resp, err := api.Get(creds, "/api/v1/me")
+	if err != nil || resp.Status != 200 {
+		return ""
+	}
+	var m struct {
+		OrgID   string `json:"org_id"`
+		OrgName string `json:"org_name"`
+	}
+	if resp.JSON(&m) != nil {
+		return ""
+	}
+	if m.OrgName == "" || m.OrgName == m.OrgID {
+		return resolveOrgName(creds, m.OrgID)
+	}
+	return m.OrgName
+}
+
+// loginUI draws the device sign-in on the rail: where to go, the code, and
+// a spinner while the browser approval is pending.
+func (s *screen) loginUI() auth.LoginUI {
+	return auth.LoginUI{
+		ShowCode: func(uri, code string) {
+			s.railOpen = true
+			render.Echo(ui.Start("Sign in to Kemory"))
+			render.Echo(ui.Rail(ui.Dim("Open  ") + uri))
+			render.Echo(ui.Rail(ui.Dim("Code  ") + ui.Bold(code)))
+		},
+		Wait: func(poll func()) {
+			ui.Spin(render.Err, "Waiting for you to approve in the browser…", poll)
+		},
+	}
 }
 
 // spin runs work under a spinner naming host. An app that may ask to be quit

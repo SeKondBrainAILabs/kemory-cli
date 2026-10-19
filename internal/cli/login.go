@@ -64,7 +64,13 @@ func loginLocal(g *globals) error {
 
 func loginDeviceFlow(g *globals, openBrowser bool) error {
 	p := g.profile
-	creds, err := auth.Login(p.Issuer, p.ClientID, p.KemoryURL, g.env, openBrowser, stdoutWriter())
+	var creds *config.Credentials
+	var err error
+	if g.screen != nil {
+		creds, err = auth.LoginWith(p.Issuer, p.ClientID, p.KemoryURL, g.env, openBrowser, g.screen.loginUI())
+	} else {
+		creds, err = auth.Login(p.Issuer, p.ClientID, p.KemoryURL, g.env, openBrowser, stdoutWriter())
+	}
 	if err != nil {
 		var flow *auth.FlowError
 		var redirect *auth.RedirectError
@@ -124,6 +130,10 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	}
 	if err := creds.Save(); err != nil {
 		return err
+	}
+	if g.screen != nil {
+		// The guided screen says who signed in itself.
+		return nil
 	}
 	teams := make([]string, 0, len(me.Teams))
 	for _, t := range me.Teams {
