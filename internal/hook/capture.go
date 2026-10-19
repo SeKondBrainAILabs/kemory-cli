@@ -69,8 +69,9 @@ func (e Event) incremental() bool {
 // accepts Claude Code's shape ({"type":"user","message":{"content":…}}),
 // Codex's ({"type":"response_item","payload":{"type":"message","role":"user",
 // "content":[{"type":"input_text","text":…}]}}), Cursor's
-// ({"role":"user","message":{"content":…}}, the prompt inside <user_query>)
-// and the common {"role":"user","content":…} one. Harness-injected text
+// ({"role":"user","message":{"content":…}}, the prompt inside <user_query>),
+// Gemini CLI's ({"id":…,"type":"user","content":…}, where hook context is
+// wrapped in <hook_context>) and the common {"role":"user","content":…} one. Harness-injected text
 // (starting with "<" or "Caveat:") is skipped: it is not the user's intent.
 func UserTurns(path string) ([]string, error) {
 	f, err := os.Open(path)
@@ -79,6 +80,8 @@ func UserTurns(path string) ([]string, error) {
 	}
 	defer f.Close()
 	var turns []string
+	// Gemini CLI may write a message again under the same id.
+	seen := map[string]bool{}
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 1<<20), 64<<20)
 	for scanner.Scan() {
@@ -102,6 +105,17 @@ func UserTurns(path string) ([]string, error) {
 		case line["type"] == "user":
 			if msg, ok := line["message"].(map[string]any); ok {
 				content = msg["content"]
+				break
+			}
+			if id, _ := line["id"].(string); id != "" {
+				if seen[id] {
+					continue
+				}
+				seen[id] = true
+			}
+			content = line["content"]
+			if shown, ok := line["displayContent"]; ok && shown != nil {
+				content = shown
 			}
 		case line["role"] == "user":
 			content = line["content"]
@@ -111,7 +125,7 @@ func UserTurns(path string) ([]string, error) {
 		default:
 			continue
 		}
-		text := userQuery(strings.TrimSpace(flatten(content)))
+		text := userQuery(withoutHookContext(strings.TrimSpace(flatten(content))))
 		if text != "" && !strings.HasPrefix(text, "<") && !strings.HasPrefix(text, "Caveat:") {
 			turns = append(turns, text)
 		}
@@ -132,6 +146,23 @@ func userQuery(text string) string {
 		rest = rest[:end]
 	}
 	return strings.TrimSpace(rest)
+}
+
+// withoutHookContext drops the <hook_context> block Gemini CLI puts before a
+// prompt, which is the context a session-start hook injected.
+func withoutHookContext(text string) string {
+	const open, closing = "<hook_context>", "</hook_context>"
+	for {
+		start := strings.Index(text, open)
+		if start < 0 {
+			return text
+		}
+		end := strings.Index(text[start:], closing)
+		if end < 0 {
+			return strings.TrimSpace(text[:start])
+		}
+		text = strings.TrimSpace(text[:start] + text[start+end+len(closing):])
+	}
 }
 
 func codexUserText(content any) string {
@@ -156,6 +187,9 @@ func flatten(content any) string {
 	switch c := content.(type) {
 	case string:
 		return c
+	case map[string]any:
+		t, _ := c["text"].(string)
+		return t
 	case []any:
 		var parts []string
 		for _, p := range c {

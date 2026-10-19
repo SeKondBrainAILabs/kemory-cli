@@ -82,3 +82,15 @@ func TestConnectOpenCodeAddsTheEntryAndPlugin(t *testing.T) {
 		t.Fatalf("doctor: %+v", report)
 	}
 }
+
+func TestConnectGeminiCLIAddsTheEntryAndHooks(t *testing.T) {
+	home := setHome(t)
+	code, out, _ := run(t, "mcp", "install", "--host", "gemini-cli")
+	if code != 0 || !strings.Contains(out, "automatic memory hooks in") || strings.Contains(out, "approve") {
+		t.Fatalf("got %d %q", code, out)
+	}
+	settings := readFile(t, filepath.Join(home, ".gemini", "settings.json"))
+	if !strings.Contains(settings, `"mcpServers"`) || !strings.Contains(settings, "hook session-start --agent gemini-cli") {
+		t.Fatalf("settings:\n%s", settings)
+	}
+}

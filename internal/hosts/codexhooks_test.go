@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-func codexEvents(t *testing.T, path string) map[string][]codexGroup {
+func codexEvents(t *testing.T, path string) map[string][]hookGroup {
 	t.Helper()
 	var file struct {
-		Hooks map[string][]codexGroup `json:"hooks"`
+		Hooks map[string][]hookGroup `json:"hooks"`
 	}
 	data, err := os.ReadFile(path)
 	if err != nil || json.Unmarshal(data, &file) != nil {
@@ -81,5 +81,40 @@ func TestCodexHooksRefuseAnInvalidFile(t *testing.T) {
 	}
 	if CodexHooksInstalled() {
 		t.Fatal("an invalid file has no hooks")
+	}
+}
+
+func TestGeminiHooksShareTheSettingsFileWithItsMCPServers(t *testing.T) {
+	home := setHome(t)
+	path := filepath.Join(home, ".gemini", "settings.json")
+	mustWrite(t, path, `{"theme": "GitHub", "hooks": {"BeforeTool": [{"matcher": "write_file", "hooks": [{"type": "command", "command": "check.sh", "timeout": 5000}]}]}}`)
+	if err := WriteEntry("gemini-cli", path, "kemory", LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 { // the second run must change nothing
+		if _, err := InstallGeminiHooks(LaunchFor("prod")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events := codexEvents(t, path)
+	start := events["SessionStart"]
+	if len(start) != 1 || start[0].Hooks[0].Command != "kemory --env prod hook session-start --agent gemini-cli" ||
+		start[0].Hooks[0].Timeout != 10000 || start[0].Hooks[0].Name != "kemory-session-start" {
+		t.Fatalf("SessionStart: %+v", start)
+	}
+	for _, e := range []string{"AfterAgent", "PreCompress", "SessionEnd"} {
+		if len(events[e]) != 1 || events[e][0].Hooks[0].Command != "kemory --env prod hook capture --agent gemini-cli" {
+			t.Fatalf("%s: %+v", e, events[e])
+		}
+	}
+	if len(events["BeforeTool"]) != 1 {
+		t.Fatalf("the user's hook changed: %+v", events["BeforeTool"])
+	}
+	data := read(t, path)
+	if !strings.Contains(data, `"theme": "GitHub"`) || !strings.Contains(data, `"mcpServers"`) {
+		t.Fatalf("settings lost:\n%s", data)
+	}
+	if !GeminiHooksInstalled() || CodexHooksInstalled() {
+		t.Fatal("each agent's hooks are its own")
 	}
 }

@@ -23,9 +23,9 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
    Your browser opens to sign in. kemory then lists the AI clients on this
    machine with their Kemory status: move with the arrow keys, toggle with
    space, and Enter connects the ticked ones (every ready client starts
-   ticked). Claude Code and Grok Build get the Kemory plugin, Codex and
-   Cursor an MCP entry plus memory hooks, the others an MCP entry, and the
-   connection is checked. A summary lists what is left to do, such as which clients to
+   ticked). Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
+   Gemini CLI and OpenCode an MCP entry plus automatic memory; the others an
+   MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
    restart.
 2. Restart the clients it lists. Warp picks the change up without a restart.
 3. Check the setup end to end at any time with `kemory doctor`.
@@ -90,8 +90,9 @@ when a session starts and save the session as it goes ([Hooks](#hooks)). Codex
 runs a new hook only after you approve it, so open Codex once and approve them
 with `/hooks`. Your other hooks in that file are left as they are.
 
-For Cursor they add the same hooks to `~/.cursor/hooks.json`. Cursor runs
-them without asking, and leaves your other hooks as they are.
+For Cursor they add the same hooks to `~/.cursor/hooks.json`, and for Gemini
+CLI to the `hooks` in `~/.gemini/settings.json`. Both run them without asking,
+and your other hooks are left as they are.
 
 For OpenCode they write a plugin, `~/.config/opencode/plugins/kemory.js`, that
 does the same: it adds your memory to the system prompt when a session starts
@@ -109,7 +110,7 @@ everything else in the file is left as it was.
 | `codex` | OpenAI Codex | `~/.codex/config.toml`, plus memory hooks in `~/.codex/hooks.json` (or under `$CODEX_HOME`) |
 | `cursor` | Cursor | `~/.cursor/mcp.json`, plus memory hooks in `~/.cursor/hooks.json` |
 | `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json` |
-| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` |
+| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json`, with the memory hooks in the same file |
 | `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
 | `windsurf` | Windsurf / Devin Desktop | `~/.config/devin/mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` for older installs |
 | `cline` | Cline | the VS Code extension's `cline_mcp_settings.json`, or `~/.cline/data/settings/cline_mcp_settings.json` |

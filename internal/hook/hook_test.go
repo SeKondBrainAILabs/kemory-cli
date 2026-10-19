@@ -227,3 +227,19 @@ func TestCursorEventsAndTranscript(t *testing.T) {
 		t.Fatalf("got %q %v", turns, err)
 	}
 }
+
+func TestUserTurnsReadsGeminiCLI(t *testing.T) {
+	path := writeTranscript(t,
+		`{"sessionId": "g1", "projectHash": "h", "startTime": "2026-10-19T17:00:00Z", "kind": "main"}`,
+		`{"id": "m1", "timestamp": "t", "type": "user", "content": [{"text": "<hook_context>Kemory is this user's memory</hook_context>"}]}`,
+		`{"id": "m2", "timestamp": "t", "type": "user", "content": [{"text": "<hook_context>ctx</hook_context>\n\nfix the build"}]}`,
+		`{"id": "m3", "timestamp": "t", "type": "gemini", "content": [{"text": "done"}]}`,
+		`{"id": "m4", "timestamp": "t", "type": "user", "content": [{"text": "see @a.go\n--- a.go ---\npackage a"}], "displayContent": [{"text": "see @a.go"}]}`,
+		`{"id": "m4", "timestamp": "t", "type": "user", "content": [{"text": "see @a.go"}]}`,
+		`{"id": "m5", "timestamp": "t", "type": "user", "content": {"text": "ship it"}}`,
+		`{"$set": {"memoryScratchpad": "x"}}`)
+	turns, err := UserTurns(path)
+	if err != nil || strings.Join(turns, "|") != "fix the build|see @a.go|ship it" {
+		t.Fatalf("got %q %v", turns, err)
+	}
+}

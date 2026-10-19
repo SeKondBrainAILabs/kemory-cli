@@ -27,6 +27,11 @@ var memoryHooks = map[string]memoryHook{
 		installed: hosts.CursorHooksInstalled,
 		path:      hosts.CursorHooksPath,
 	},
+	"gemini-cli": {
+		install:   hosts.InstallGeminiHooks,
+		installed: hosts.GeminiHooksInstalled,
+		path:      hosts.GeminiSettingsPath,
+	},
 	"opencode": {
 		install:   hosts.InstallOpenCodePlugin,
 		installed: hosts.OpenCodePluginInstalled,

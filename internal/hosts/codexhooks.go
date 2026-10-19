@@ -12,22 +12,55 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/jsonedit"
 )
 
-// Codex runs hooks from ~/.codex/hooks.json ($CODEX_HOME/hooks.json): for
-// each event, a list of groups, each holding command handlers. Kemory adds
-// one group per event that calls `kemory hook`, and leaves every other hook
-// alone. Codex only runs a new or changed hook once the user trusts it with
-// /hooks, which no file kemory could write can do for them.
+// Codex and Gemini CLI keep hooks in a JSON file's "hooks" object: for each
+// event, a list of groups, each holding command handlers. Kemory adds one
+// group per event that calls `kemory hook`, and leaves every other hook
+// alone.
+//
+// Codex reads ~/.codex/hooks.json ($CODEX_HOME/hooks.json) and only runs a
+// new or changed hook once the user trusts it with /hooks, which no file
+// kemory could write can do for them. Gemini CLI reads the hooks in
+// ~/.gemini/settings.json, next to its MCP servers, and asks nothing.
 
-// codexHookEvents maps each Codex event to the kemory hook it runs and the
-// handler's timeout in seconds. Codex caps SessionEnd at 3.
-var codexHookEvents = []struct {
+// hookEvent is an agent event, the kemory hook it runs and the handler's
+// timeout in seconds.
+type hookEvent struct {
 	event, hook string
 	timeout     int
-}{
-	{"SessionStart", "session-start", 10},
-	{"Stop", "capture", 10},
-	{"PreCompact", "capture", 10},
-	{"SessionEnd", "capture", 3},
+}
+
+// groupedHooks is an agent whose hooks file holds groups of handlers.
+type groupedHooks struct {
+	agent  string
+	path   func() string
+	events []hookEvent
+	// timeoutScale turns seconds into the unit the agent counts in.
+	timeoutScale int
+	// named handlers carry a name, which the agent shows in its hook list.
+	named bool
+}
+
+// Codex caps SessionEnd at 3 seconds.
+var codexHooks = groupedHooks{
+	agent: "codex", path: CodexHooksPath, timeoutScale: 1,
+	events: []hookEvent{
+		{"SessionStart", "session-start", 10},
+		{"Stop", "capture", 10},
+		{"PreCompact", "capture", 10},
+		{"SessionEnd", "capture", 3},
+	},
+}
+
+// Gemini CLI counts timeouts in milliseconds. AfterAgent fires after every
+// turn.
+var geminiHooks = groupedHooks{
+	agent: "gemini-cli", path: GeminiSettingsPath, timeoutScale: 1000, named: true,
+	events: []hookEvent{
+		{"SessionStart", "session-start", 10},
+		{"AfterAgent", "capture", 10},
+		{"PreCompress", "capture", 10},
+		{"SessionEnd", "capture", 10},
+	},
 }
 
 // CodexHooksPath is Codex's user-level hooks file.
@@ -37,6 +70,12 @@ func CodexHooksPath() string {
 		dir = filepath.Join(home(), ".codex")
 	}
 	return filepath.Join(dir, "hooks.json")
+}
+
+// GeminiSettingsPath is Gemini CLI's user settings file, which holds its hooks
+// as well as its MCP servers.
+func GeminiSettingsPath() string {
+	return filepath.Join(home(), ".gemini", "settings.json")
 }
 
 // shellQuote quotes an argument for the shell an agent runs hook commands in.
@@ -71,16 +110,17 @@ func isKemoryHook(command, agent string) bool {
 		(strings.Contains(command, " hook session-start --agent "+agent) || strings.Contains(command, " hook capture --agent "+agent))
 }
 
-type codexHandler struct {
+type groupHandler struct {
+	Name          string `json:"name,omitempty"`
 	Type          string `json:"type"`
 	Command       string `json:"command"`
 	Timeout       int    `json:"timeout,omitempty"`
 	StatusMessage string `json:"statusMessage,omitempty"`
 }
 
-type codexGroup struct {
+type hookGroup struct {
 	Matcher string         `json:"matcher,omitempty"`
-	Hooks   []codexHandler `json:"hooks"`
+	Hooks   []groupHandler `json:"hooks"`
 }
 
 // readHooks reads an agent's hooks file and its "hooks" object, both empty
@@ -103,9 +143,9 @@ func readHooks(path string) (*jsonedit.Object, *jsonedit.Object, error) {
 	return cfg, events, nil
 }
 
-// withoutKemory returns an event's groups minus kemory's own handlers, and
-// whether any were found. A group left empty by that is dropped.
-func withoutKemory(raw json.RawMessage) ([]json.RawMessage, bool, error) {
+// withoutKemory returns an event's groups minus the handlers kemory wrote for
+// agent, and whether any were found. A group left empty by that is dropped.
+func withoutKemory(raw json.RawMessage, agent string) ([]json.RawMessage, bool, error) {
 	if len(raw) == 0 {
 		return nil, false, nil
 	}
@@ -128,7 +168,7 @@ func withoutKemory(raw json.RawMessage) ([]json.RawMessage, bool, error) {
 			var handler struct {
 				Command string `json:"command"`
 			}
-			if json.Unmarshal(h, &handler) == nil && isKemoryHook(handler.Command, "codex") {
+			if json.Unmarshal(h, &handler) == nil && isKemoryHook(handler.Command, agent) {
 				found = true
 				continue
 			}
@@ -155,25 +195,28 @@ func withoutKemory(raw json.RawMessage) ([]json.RawMessage, bool, error) {
 	return kept, found, nil
 }
 
-// InstallCodexHooks adds kemory's hooks to Codex's hooks file, replacing any
-// it added before, and leaves every other hook as it was.
-func InstallCodexHooks(launch Launch) (string, error) {
-	path := CodexHooksPath()
+// install adds kemory's hooks to the agent's hooks file, replacing any it
+// added before, and leaves every other hook as it was.
+func (g groupedHooks) install(launch Launch) (string, error) {
+	path := g.path()
 	cfg, events, err := readHooks(path)
 	if err != nil {
 		return path, err
 	}
-	for _, e := range codexHookEvents {
+	for _, e := range g.events {
 		raw, _ := events.Get(e.event)
-		groups, _, err := withoutKemory(raw)
+		groups, _, err := withoutKemory(raw, g.agent)
 		if err != nil {
 			return path, invalid(path, fmt.Sprintf("has a %s value that is not a list of hook groups", e.event))
 		}
-		handler := codexHandler{Type: "command", Command: hookCommand(launch, e.hook, "codex"), Timeout: e.timeout}
-		if e.hook == "session-start" {
+		handler := groupHandler{Type: "command", Command: hookCommand(launch, e.hook, g.agent), Timeout: e.timeout * g.timeoutScale}
+		if g.named {
+			handler.Name = "kemory-" + e.hook
+		}
+		if g.agent == "codex" && e.hook == "session-start" {
 			handler.StatusMessage = "Loading Kemory memory…"
 		}
-		ours, err := json.Marshal(codexGroup{Hooks: []codexHandler{handler}})
+		ours, err := json.Marshal(hookGroup{Hooks: []groupHandler{handler}})
 		if err != nil {
 			return path, err
 		}
@@ -187,18 +230,31 @@ func InstallCodexHooks(launch Launch) (string, error) {
 	return path, writeJSON(path, cfg)
 }
 
-// CodexHooksInstalled reports whether every kemory hook is in Codex's hooks
-// file.
-func CodexHooksInstalled() bool {
-	_, events, err := readHooks(CodexHooksPath())
+// installed reports whether every kemory hook is in the agent's hooks file.
+func (g groupedHooks) installed() bool {
+	_, events, err := readHooks(g.path())
 	if err != nil {
 		return false
 	}
-	for _, e := range codexHookEvents {
+	for _, e := range g.events {
 		raw, _ := events.Get(e.event)
-		if _, found, err := withoutKemory(raw); err != nil || !found {
+		if _, found, err := withoutKemory(raw, g.agent); err != nil || !found {
 			return false
 		}
 	}
 	return true
 }
+
+// InstallCodexHooks adds kemory's hooks to Codex's hooks file.
+func InstallCodexHooks(launch Launch) (string, error) { return codexHooks.install(launch) }
+
+// CodexHooksInstalled reports whether every kemory hook is in Codex's hooks
+// file.
+func CodexHooksInstalled() bool { return codexHooks.installed() }
+
+// InstallGeminiHooks adds kemory's hooks to Gemini CLI's settings file.
+func InstallGeminiHooks(launch Launch) (string, error) { return geminiHooks.install(launch) }
+
+// GeminiHooksInstalled reports whether every kemory hook is in Gemini CLI's
+// settings file.
+func GeminiHooksInstalled() bool { return geminiHooks.installed() }
