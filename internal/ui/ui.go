@@ -70,9 +70,10 @@ func Title() string {
 
 // names are the product names of the hosts.
 var names = map[string]string{
-	"claude-code": "Claude Code",
-	// The Claude app's Chat tab; its Code tab is Claude Code.
-	"claude-desktop": "Claude app (chat)",
+	"claude-code": "Claude Code (Code tab, terminal)",
+	// The Claude app's Chat tab, claude.ai and Claude mobile share the
+	// claude.ai connector; the app's Code tab is Claude Code.
+	"claude-desktop": "Claude chat (app, web, mobile)",
 	"codex":          "Codex",
 	"cursor":         "Cursor",
 	"vscode":         "VS Code",
@@ -88,10 +89,31 @@ var names = map[string]string{
 }
 
 // nameWidth is the name column of client rows, wide enough for every name.
-const nameWidth = 18
+var nameWidth = func() int {
+	width := 0
+	for _, n := range names {
+		width = max(width, len(n))
+	}
+	return width + 1
+}()
 
 // apps are the apps to restart where that differs from the client's name.
-var apps = map[string]string{"claude-desktop": "Claude"}
+var apps = map[string]string{"claude-code": "Claude Code", "claude-desktop": "Claude"}
+
+// nameCell is a host's name padded to the name column: the product in bold
+// (or plain), and where it is used, in brackets, dimmed.
+func nameCell(host string, strong bool) string {
+	name := Name(host)
+	product, where, found := strings.Cut(name, " (")
+	cell := product
+	if strong {
+		cell = bold.Render(product)
+	}
+	if found {
+		cell += dim.Render(" (" + where)
+	}
+	return cell + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(name)))
+}
 
 // AppName is the app a person restarts or opens for host.
 func AppName(host string) string {
@@ -171,16 +193,16 @@ const (
 func Detected(host string, state ClientState, status string) string {
 	switch state {
 	case Connected:
-		return lipgloss.NewStyle().Foreground(Mint).Render("●") + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(status)
+		return lipgloss.NewStyle().Foreground(Mint).Render("●") + " " + nameCell(host, true) + dim.Render(status)
 	case Ready:
-		return dim.Render("○") + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(status)
+		return dim.Render("○") + " " + nameCell(host, true) + dim.Render(status)
 	}
-	return dim.Render("○ " + lipgloss.NewStyle().Width(nameWidth).Render(Name(host)) + status)
+	return dim.Render("○ " + Name(host) + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(Name(host)))) + status)
 }
 
 // Option is a host as a choice in a prompt.
 func Option(host, status string) string {
-	return lipgloss.NewStyle().Width(nameWidth).Render(Name(host)) + dim.Render(status)
+	return nameCell(host, false) + dim.Render(status)
 }
 
 // Result is a finished row: a mark, the host and what happened.
@@ -189,7 +211,7 @@ func Result(host string, ok bool, detail string) string {
 	if !ok {
 		mark = cross
 	}
-	return mark + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(detail)
+	return mark + " " + nameCell(host, true) + dim.Render(detail)
 }
 
 // Failed is a failure line.

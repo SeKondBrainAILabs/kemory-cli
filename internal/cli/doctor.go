@@ -496,6 +496,13 @@ func (d *doctor) report() {
 		{"AI clients", func(c string) bool { return strings.HasPrefix(c, "mcp host") }},
 		{"CLI", func(c string) bool { return c == "cli up-to-date" }},
 	}
+	width := 0
+	for _, c := range d.checks {
+		// Skip: only the label is wanted, and a pass would look up the org.
+		label, _ := d.plain(c.Check, render.Skip, "")
+		width = max(width, len(label))
+	}
+	render.CheckLabelWidth = max(18, width)
 	for _, sec := range sections {
 		render.Echo("")
 		render.Echo(ui.Section(sec.title))

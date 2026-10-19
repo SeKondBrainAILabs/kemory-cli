@@ -336,9 +336,9 @@ const (
 
 const checkLabelWidth = 26
 
-// styledLabelWidth fits the styled report's labels, product names and the
-// like, which are shorter than the plain ones.
-const styledLabelWidth = 18
+// CheckLabelWidth is the label column of styled checks. A report whose labels
+// are longer sets it to fit them.
+var CheckLabelWidth = 18
 
 // Check prints one "PASS  label  detail" line. On a terminal, a long detail
 // wraps under the detail column instead of at column 0, and never inside a
@@ -382,12 +382,12 @@ func styledCheck(w io.Writer, label string, status Status, detail string) {
 	case Fail:
 		mark = tintOrange.Render("✗")
 	}
-	head := indent(w) + mark + " " + tintBold.Render(padRight(label, styledLabelWidth))
+	head := indent(w) + mark + " " + tintBold.Render(padRight(label, CheckLabelWidth))
 	if detail == "" {
 		fmt.Fprintln(w, head)
 		return
 	}
-	margin := len(indent(w)) + 1 + 1 + styledLabelWidth + 2
+	margin := len(indent(w)) + 1 + 1 + CheckLabelWidth + 2
 	lines := []string{detail}
 	if width := terminalWidth(w); width-margin >= 30 {
 		lines = WrapKeepingCommands(detail, width-margin)
