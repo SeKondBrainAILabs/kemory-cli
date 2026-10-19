@@ -14,9 +14,9 @@ func serve(t *testing.T, status int, body string) {
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	old := URL
-	URL = srv.URL
-	t.Cleanup(func() { URL = old })
+	old, oldNPM := URL, NPMURL
+	URL, NPMURL = srv.URL, srv.URL+"/npm"
+	t.Cleanup(func() { URL, NPMURL = old, oldNPM })
 }
 
 func TestLatestPicksTheNewestCLIRelease(t *testing.T) {
@@ -37,6 +37,24 @@ func TestLatestReportsHTTPErrors(t *testing.T) {
 	serve(t, http.StatusForbidden, `{"message": "rate limited"}`)
 	if _, err := Latest(context.Background()); err == nil {
 		t.Fatal("want an error")
+	}
+}
+
+func TestLatestFallsBackToNPMWhenGitHubRefuses(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/npm" {
+			_, _ = w.Write([]byte(`{"name": "kemory", "version": "0.18.7"}`))
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+	old, oldNPM := URL, NPMURL
+	URL, NPMURL = srv.URL, srv.URL+"/npm"
+	t.Cleanup(func() { URL, NPMURL = old, oldNPM })
+	got, err := Latest(context.Background())
+	if err != nil || got != "0.18.7" {
+		t.Fatalf("got %q %v", got, err)
 	}
 }
 

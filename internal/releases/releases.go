@@ -18,13 +18,52 @@ import (
 // URL lists the tap's releases. Overridable in tests.
 var URL = "https://api.github.com/repos/SeKondBrainAILabs/homebrew-s9n/releases?per_page=50"
 
+// NPMURL is the npm registry's record of the newest kemory package, asked
+// when GitHub refuses (its API allows 60 unauthenticated requests an hour per
+// address) or cannot be reached. Overridable in tests.
+var NPMURL = "https://registry.npmjs.org/kemory/latest"
+
 // HTTPClient is used for the lookup. Overridable in tests.
 var HTTPClient = &http.Client{Timeout: 5 * time.Second}
 
 const tagPrefix = "cli-v"
 
 // Latest returns the newest released CLI version, "" when none is published.
+// It asks GitHub, where releases appear first, and falls back to npm.
 func Latest(ctx context.Context) (string, error) {
+	v, err := latestFromGitHub(ctx)
+	if err == nil {
+		return v, nil
+	}
+	if fromNPM, npmErr := latestFromNPM(ctx); npmErr == nil && parse(fromNPM) != nil {
+		return fromNPM, nil
+	}
+	return "", err
+}
+
+func latestFromNPM(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, NPMURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("npm returned HTTP %d", resp.StatusCode)
+	}
+	var pkg struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&pkg); err != nil {
+		return "", err
+	}
+	return pkg.Version, nil
+}
+
+func latestFromGitHub(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, URL, nil)
 	if err != nil {
 		return "", err

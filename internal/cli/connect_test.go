@@ -217,9 +217,9 @@ func fakeReleases(t *testing.T, body string) {
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
-	old := releases.URL
-	releases.URL = srv.URL
-	t.Cleanup(func() { releases.URL = old })
+	old, oldNPM := releases.URL, releases.NPMURL
+	releases.URL, releases.NPMURL = srv.URL, srv.URL+"/npm-unused"
+	t.Cleanup(func() { releases.URL, releases.NPMURL = old, oldNPM })
 }
 
 func fakeIssuer(t *testing.T) *httptest.Server {
