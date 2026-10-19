@@ -199,7 +199,7 @@ func TestUpgradeRunsTheInstallersOwnCommand(t *testing.T) {
 	runUpgrade = func(argv []string) error { ran = argv; return nil }
 
 	code, out, _ := run(t, "upgrade", "--yes")
-	if code != 0 || strings.Join(ran, " ") != "npm install -g kemory@latest" || !strings.Contains(out, "Upgraded to 9.9.9") {
+	if code != 0 || strings.Join(ran, " ") != "npm install -g kemory@9.9.9" || !strings.Contains(out, "Upgraded to 9.9.9") {
 		t.Fatalf("got %d %v\n%s", code, ran, out)
 	}
 
@@ -213,7 +213,7 @@ func TestUpgradeRunsTheInstallersOwnCommand(t *testing.T) {
 	}
 
 	runUpgrade = func([]string) error { return errors.New("exit status 1") }
-	if code, _, errOut := run(t, "upgrade", "--yes"); code == 0 || !strings.Contains(errOut, "npm install -g kemory@latest") {
+	if code, _, errOut := run(t, "upgrade", "--yes"); code == 0 || !strings.Contains(errOut, "npm install -g kemory@9.9.9") {
 		t.Fatalf("a failed upgrade must say what to run: %d %q", code, errOut)
 	}
 }

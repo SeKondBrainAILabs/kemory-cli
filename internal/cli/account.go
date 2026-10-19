@@ -436,6 +436,12 @@ func newUpgradeCmd() *cobra.Command {
 				render.Warn(fmt.Sprintf("note: could not compare %q with %q.", version.Version, latest))
 			}
 			channel := detectChannel()
+			// npm resolves "latest" from a cached index that can lag a fresh
+			// release, so it is asked for the version just looked up.
+			if channel.name == "npm" && ok {
+				channel.command = "npm install -g kemory@" + latest
+				channel.argv = []string{"npm", "install", "-g", "kemory@" + latest}
+			}
 			render.Echo("")
 			switch {
 			case check && !ok:
