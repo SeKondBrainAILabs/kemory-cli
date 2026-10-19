@@ -188,7 +188,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		written[h] = true
 		return hostResult{
 			host: h, detail: pluginInstalled(h), ok: true,
-			short: level(h, "plugin"), next: "Restart " + ui.Name(h) + " to load the Kemory plugin",
+			short: level(h, "plugin"), next: "Restart " + ui.AppName(h) + " to load the Kemory plugin",
 		}
 	}
 	path := hosts.ResolveConfig(h)
@@ -218,7 +218,7 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		r.short = strings.Replace(r.short, levelTools, levelFull, 1)
 		if memoryHooks[h].approve != "" {
 			r.restart = false
-			r.next = "Open " + ui.Name(h) + " and approve the memory hooks with /hooks"
+			r.next = "Open " + ui.AppName(h) + " and approve the memory hooks with /hooks"
 		}
 	}
 	return r

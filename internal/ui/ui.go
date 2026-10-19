@@ -70,8 +70,9 @@ func Title() string {
 
 // names are the product names of the hosts.
 var names = map[string]string{
-	"claude-code":    "Claude Code",
-	"claude-desktop": "Claude Desktop",
+	"claude-code": "Claude Code",
+	// The Claude app's Chat tab; its Code tab is Claude Code.
+	"claude-desktop": "Claude app (chat)",
 	"codex":          "Codex",
 	"cursor":         "Cursor",
 	"vscode":         "VS Code",
@@ -84,6 +85,20 @@ var names = map[string]string{
 	"continue":       "Continue",
 	"warp":           "Warp",
 	"opencode":       "OpenCode",
+}
+
+// nameWidth is the name column of client rows, wide enough for every name.
+const nameWidth = 18
+
+// apps are the apps to restart where that differs from the client's name.
+var apps = map[string]string{"claude-desktop": "Claude"}
+
+// AppName is the app a person restarts or opens for host.
+func AppName(host string) string {
+	if a, ok := apps[host]; ok {
+		return a
+	}
+	return Name(host)
 }
 
 // Name is the product name of a host.
@@ -156,16 +171,16 @@ const (
 func Detected(host string, state ClientState, status string) string {
 	switch state {
 	case Connected:
-		return lipgloss.NewStyle().Foreground(Mint).Render("●") + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
+		return lipgloss.NewStyle().Foreground(Mint).Render("●") + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(status)
 	case Ready:
-		return dim.Render("○") + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
+		return dim.Render("○") + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(status)
 	}
-	return dim.Render("○ " + lipgloss.NewStyle().Width(16).Render(Name(host)) + status)
+	return dim.Render("○ " + lipgloss.NewStyle().Width(nameWidth).Render(Name(host)) + status)
 }
 
 // Option is a host as a choice in a prompt.
 func Option(host, status string) string {
-	return lipgloss.NewStyle().Width(16).Render(Name(host)) + dim.Render(status)
+	return lipgloss.NewStyle().Width(nameWidth).Render(Name(host)) + dim.Render(status)
 }
 
 // Result is a finished row: a mark, the host and what happened.
@@ -174,7 +189,7 @@ func Result(host string, ok bool, detail string) string {
 	if !ok {
 		mark = cross
 	}
-	return mark + " " + bold.Width(16).Render(Name(host)) + dim.Render(detail)
+	return mark + " " + bold.Width(nameWidth).Render(Name(host)) + dim.Render(detail)
 }
 
 // Failed is a failure line.

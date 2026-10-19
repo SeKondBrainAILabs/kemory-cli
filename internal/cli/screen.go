@@ -154,7 +154,7 @@ func (s *screen) results(lines []hostResult) {
 			s.next = append(s.next, r.next)
 		}
 		if r.restart {
-			s.restart = append(s.restart, ui.Name(r.host))
+			s.restart = append(s.restart, ui.AppName(r.host))
 		}
 	}
 }
