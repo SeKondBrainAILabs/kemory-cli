@@ -27,31 +27,20 @@ var (
 	Muted  = lipgloss.AdaptiveColor{Light: "245", Dark: "243"}
 )
 
-// MinWidth is the narrowest terminal the header with the mark is drawn in;
+// MinWidth is the narrowest terminal the three-line header is drawn in;
 // below it the one-line title is used.
 const MinWidth = 60
 
-// Header is kemory's name, tagline and maker, beside the SeKondBrain mark
-// where the terminal can draw it as an image, three rows tall.
+// circle is the SeKondBrain mark, a ring around a disc, as a character every
+// terminal draws.
+var circle = lipgloss.NewStyle().Foreground(Purple).Bold(true).Render("◉")
+
+// Header is the SeKondBrain mark in line with kemory's name, and the tagline
+// and maker under it.
 func Header() string {
-	text := []string{
-		wordmark("kemory"),
-		lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents"),
-		lipgloss.NewStyle().Foreground(Muted).Render("by SeKondBrain"),
-	}
-	mark, err := iconFiles.ReadFile("icons/sekondbrain.png")
-	if err != nil || images == noImages {
-		return " " + strings.Join(text, "\n ") + "\n"
-	}
-	// Write the text beside the mark's place first, then go back up and draw
-	// the mark there, keeping the cursor where the text left it.
-	const indent = "         " // a margin, the mark's 6 columns and a gap
-	var b strings.Builder
-	for _, t := range text {
-		b.WriteString(indent + t + "\n")
-	}
-	b.WriteString("\x1b[3A\r\x1b[1C\x1b7" + inlineImage(mark, 6, 3) + "\x1b8\x1b[3B\r")
-	return b.String()
+	return " " + circle + " " + wordmark("kemory") + "\n" +
+		"   " + lipgloss.NewStyle().Foreground(Lilac).Render("persistent memory for your AI agents") + "\n" +
+		"   " + dim.Render("by SeKondBrain") + "\n"
 }
 
 // wordmark is word in bold, in a blue-to-purple-to-pink gradient.
@@ -66,63 +55,35 @@ func wordmark(word string) string {
 	return b.String()
 }
 
-// Title is the one-line heading used where the banner does not fit.
+// Title is the one-line heading used where the header does not fit.
 func Title() string {
-	return lipgloss.NewStyle().Foreground(Purple).Bold(true).Render("◆ kemory") +
-		lipgloss.NewStyle().Foreground(Lilac).Render(" · persistent memory for your AI agents")
+	return circle + " " + wordmark("kemory") + lipgloss.NewStyle().Foreground(Lilac).Render(" · persistent memory for your AI agents")
 }
 
-type client struct {
-	name, glyph string
-	bg, fg      lipgloss.TerminalColor
-}
-
-// mono is the tile for products whose mark is black: light on a dark
-// terminal and dark on a light one, so it never disappears into the
-// background.
-var (
-	monoBg = lipgloss.AdaptiveColor{Light: "#1E1E1E", Dark: "#E6E6E6"}
-	monoFg = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#111111"}
-	white  = lipgloss.Color("#FFFFFF")
-)
-
-// clients is how each host is shown: its product name and a tile in the
-// product's colour holding its mark where a character draws it (Claude's
-// asterisk, Gemini's sparkle) and a two-letter monogram everywhere else.
-// Terminals cannot draw the real logos reliably.
-var clients = map[string]client{
-	"claude-code":    {"Claude Code", "✻", lipgloss.Color("#D97757"), white},
-	"claude-desktop": {"Claude Desktop", "✻", lipgloss.Color("#C15F3C"), white},
-	"codex":          {"Codex", "Cx", monoBg, monoFg},
-	"cursor":         {"Cursor", "Cu", monoBg, monoFg},
-	"vscode":         {"VS Code", "VS", lipgloss.Color("#007ACC"), white},
-	"gemini-cli":     {"Gemini CLI", "✦", lipgloss.Color("#4285F4"), white},
-	"antigravity":    {"Antigravity", "Ag", lipgloss.Color("#A142F4"), white},
-	"windsurf":       {"Windsurf", "Ws", lipgloss.Color("#0B9A8D"), white},
-	"cline":          {"Cline", "Cl", monoBg, monoFg},
-	"kiro":           {"Kiro", "Ki", lipgloss.Color("#9046FF"), white},
-	"grok":           {"Grok", "Gr", monoBg, monoFg},
-	"continue":       {"Continue", "Co", lipgloss.Color("#E8A33D"), lipgloss.Color("#000000")},
-	"warp":           {"Warp", "Wa", lipgloss.Color("#01A4FF"), white},
-	"opencode":       {"OpenCode", "OC", monoBg, monoFg},
+// names are the product names of the hosts.
+var names = map[string]string{
+	"claude-code":    "Claude Code",
+	"claude-desktop": "Claude Desktop",
+	"codex":          "Codex",
+	"cursor":         "Cursor",
+	"vscode":         "VS Code",
+	"gemini-cli":     "Gemini CLI",
+	"antigravity":    "Antigravity",
+	"windsurf":       "Windsurf",
+	"cline":          "Cline",
+	"kiro":           "Kiro",
+	"grok":           "Grok",
+	"continue":       "Continue",
+	"warp":           "Warp",
+	"opencode":       "OpenCode",
 }
 
 // Name is the product name of a host.
 func Name(host string) string {
-	if c, ok := clients[host]; ok {
-		return c.name
+	if n, ok := names[host]; ok {
+		return n
 	}
 	return host
-}
-
-// tile is a host's monogram tile, two columns wide, for terminals that
-// cannot draw its logo.
-func tile(host string) string {
-	c, ok := clients[host]
-	if !ok {
-		c = client{glyph: "•", bg: Purple, fg: white}
-	}
-	return lipgloss.NewStyle().Background(c.bg).Foreground(c.fg).Bold(true).Width(2).Render(c.glyph)
 }
 
 // The rail runs down the left of the guided screen, as in clack's prompts:
@@ -162,17 +123,17 @@ func Dim(text string) string { return dim.Render(text) }
 // Bold is emphasised text.
 func Bold(text string) string { return bold.Render(text) }
 
-// Detected is a row of the detected-clients list: its state, logo, name
-// and what Kemory gives it.
+// Detected is a row of the detected-clients list: its state, name and what
+// Kemory gives it.
 func Detected(host string, ready bool, status string) string {
 	tag := lipgloss.NewStyle().Foreground(Muted).Width(12).Render("[connected]")
 	if ready {
 		tag = lipgloss.NewStyle().Foreground(Mint).Width(12).Render("[ready]")
 	}
-	return tag + Logo(host) + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
+	return tag + " " + bold.Width(16).Render(Name(host)) + dim.Render(status)
 }
 
-// Option is a host as a choice in a prompt, where logos cannot be drawn.
+// Option is a host as a choice in a prompt.
 func Option(host, status string) string {
 	return lipgloss.NewStyle().Width(16).Render(Name(host)) + dim.Render(status)
 }
@@ -183,7 +144,7 @@ func Result(host string, ok bool, detail string) string {
 	if !ok {
 		mark = cross
 	}
-	return mark + " " + Logo(host) + " " + bold.Width(16).Render(Name(host)) + dim.Render(detail)
+	return mark + " " + bold.Width(16).Render(Name(host)) + dim.Render(detail)
 }
 
 // Done is a success line.
