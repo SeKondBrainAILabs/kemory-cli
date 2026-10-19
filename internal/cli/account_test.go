@@ -146,7 +146,7 @@ func TestUpgradeNamesTheInstallersCommand(t *testing.T) {
 		"/opt/homebrew/Cellar/kemory/0.7.0/libexec/kemory": "brew upgrade kemory",
 		"/home/a/.local/share/uv/tools/kemory/bin/kemory":  "uv tool upgrade kemory",
 		"/home/a/.local/pipx/venvs/kemory/bin/kemory":      "pipx upgrade kemory",
-		"/usr/lib/node_modules/kemory/bin/kemory":          "npm install -g kemory@latest",
+		"/usr/lib/node_modules/kemory/bin/kemory":          "npm install -g kemory@9.9.9",
 		"/usr/local/bin/kemory":                            "Download 9.9.9",
 	}
 	for exe, want := range cases {

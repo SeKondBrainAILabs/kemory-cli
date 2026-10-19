@@ -438,7 +438,7 @@ func newUpgradeCmd() *cobra.Command {
 			channel := detectChannel()
 			// npm resolves "latest" from a cached index that can lag a fresh
 			// release, so it is asked for the version just looked up.
-			if channel.name == "npm" && ok {
+			if channel.name == "npm" {
 				channel.command = "npm install -g kemory@" + latest
 				channel.argv = []string{"npm", "install", "-g", "kemory@" + latest}
 			}
