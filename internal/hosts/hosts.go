@@ -246,7 +246,7 @@ func hasAppFiles(dir string, ours map[string]bool) bool {
 	for _, e := range entries {
 		p := filepath.Join(dir, e.Name())
 		switch {
-		case ours[p]:
+		case ours[p], !e.IsDir() && kemoryOnly(p):
 		case e.IsDir() && holdsAny(p, ours):
 			if hasAppFiles(p, ours) {
 				return true
@@ -256,6 +256,35 @@ func hasAppFiles(dir string, ours map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// kemoryOnly reports whether path is a small JSON file holding nothing but
+// kemory server entries: one an older kemory wrote under another name, or a
+// backup of one, which says nothing about whether the app is installed.
+func kemoryOnly(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.Size() > 64<<10 {
+		return false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var cfg map[string]map[string]json.RawMessage
+	if json.Unmarshal(data, &cfg) != nil || len(cfg) != 1 {
+		return false
+	}
+	for _, servers := range cfg {
+		if len(servers) == 0 {
+			return false
+		}
+		for name := range servers {
+			if !strings.Contains(name, "kemory") {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // holdsAny reports whether dir is an ancestor of one of paths.

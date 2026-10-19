@@ -190,3 +190,18 @@ func TestOnlyContinueIsDiscontinued(t *testing.T) {
 		}
 	}
 }
+
+func TestFilesAnOlderKemoryLeftDoNotMakeAnAppInstalled(t *testing.T) {
+	home := setHome(t)
+	kemoryOnly := `{"mcpServers": {"kemory": {"command": "kemory", "args": ["mcp", "serve"]}}}`
+	mustWrite(t, filepath.Join(home, ".continue", "config.json"), kemoryOnly)
+	mustWrite(t, filepath.Join(home, ".continue", "config.json.bak-20260616"), kemoryOnly)
+	if Installed("continue") {
+		t.Fatal("files holding only kemory entries are not the app")
+	}
+	mustWrite(t, filepath.Join(home, ".continue", "config.json"),
+		`{"mcpServers": {"kemory": {"command": "kemory"}, "github": {"command": "gh"}}}`)
+	if !Installed("continue") {
+		t.Fatal("a config with the user's own servers is the app's")
+	}
+}
