@@ -224,3 +224,24 @@ func TestAMacAppBundleMeansInstalledBeforeItsFirstLaunch(t *testing.T) {
 		t.Fatal("Cursor.app means Cursor is installed")
 	}
 }
+
+func TestEntryCommandReadsEachConfigShape(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range []struct{ host, file, body, want string }{
+		{"warp", "a.json", `{"mcpServers": {"kemory": {"command": "npx", "args": ["-y", "kemory"]}}}`, "npx"},
+		{"codex", "b.toml", "[mcp_servers.kemory]\ncommand = \"/opt/kemory\"\n", "/opt/kemory"},
+		{"opencode", "c.json", `{"mcp": {"kemory": {"type": "local", "command": ["uvx", "kemory"]}}}`, "uvx"},
+		{"warp", "d.json", `{"mcpServers": {"other": {"command": "x"}}}`, ""},
+		{"warp", "missing.json", "", ""},
+	} {
+		path := filepath.Join(dir, c.file)
+		if c.body != "" {
+			if err := os.WriteFile(path, []byte(c.body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := EntryCommand(c.host, path, "kemory"); got != c.want {
+			t.Errorf("%s %s: got %q, want %q", c.host, c.file, got, c.want)
+		}
+	}
+}

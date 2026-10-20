@@ -211,18 +211,32 @@ func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	var ready []pickRow
 	render.Echo(ui.Rail(""))
 	for _, r := range rows {
-		if r.state != "ready" {
-			render.Echo(ui.Rail(ui.Detected(r.host, ui.Connected, r.short)))
+		if r.mark != ui.Ready {
+			render.Echo(ui.Rail(ui.Detected(r.host, r.mark, r.short)))
 		}
 	}
 	for _, r := range rows {
-		if r.state == "ready" {
+		if r.mark == ui.Ready {
 			render.Echo(ui.Rail(ui.Detected(r.host, ui.Ready, r.short)))
+		}
+		if r.state == "ready" {
 			ready = append(ready, r)
 		}
 	}
-	for _, h := range missing {
-		render.Echo(ui.Rail(ui.Detected(h, ui.Missing, "not installed")))
+	// The clients not installed here share one line, so the list is what
+	// this machine has.
+	if len(missing) > 0 {
+		names := make([]string, len(missing))
+		for i, h := range missing {
+			names[i] = ui.AppName(h)
+		}
+		for i, l := range wrap("Not installed: "+strings.Join(names, ", "), max(20, s.width-5)) {
+			prefix := "○ "
+			if i > 0 {
+				prefix = "  "
+			}
+			render.Echo(ui.Rail(ui.Dim(prefix + l)))
+		}
 	}
 	render.Echo(ui.Rail(ui.Dim(levelLegend)))
 	render.Echo(ui.Rail(""))

@@ -3,6 +3,8 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/ui"
 )
 
 // pluginTools is the command each plugin host is installed through.
@@ -66,6 +69,24 @@ type pickRow struct {
 	host, state, detail string
 	// short is the status on the guided screen.
 	short string
+	// mark is how the guided screen shows the row, where that differs from
+	// its state: a connected client connecting would improve, or one with a
+	// problem.
+	mark ui.ClientState
+}
+
+// commandMissing reports whether a server entry's command cannot be run from
+// here: a program not on PATH, or a full path that no longer exists.
+func commandMissing(command string) bool {
+	if command == "" {
+		return false
+	}
+	if filepath.IsAbs(command) {
+		_, err := os.Stat(command)
+		return err != nil
+	}
+	_, err := lookPath(command)
+	return err != nil
 }
 
 // The two levels a client can have. automatic loads memory when a session
@@ -131,41 +152,62 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 		path := hosts.ResolveConfig(h)
 		entries := named(hosts.KemoryEntries(h, path), g.profile.ServerName)
 		reason := covered[h]
+		var command string
+		if len(entries) > 0 {
+			command = hosts.EntryCommand(h, path, entries[0])
+		}
 		plan := ""
 		if reason != "" && toolsOnlyPlugins[h] {
 			plan = planBesidePlugin(h, g.profile.ServerName)
 		}
 		switch {
+		case plan != "" && needsHooks(h):
+			rows = append(rows, pickRow{
+				host: h, state: "ready", mark: ui.Connected, detail: reason + "; " + plan,
+				short: levelTools + " · connect to make it " + levelFull,
+			})
 		case plan != "":
-			rows = append(rows, pickRow{h, "ready", reason + "; " + plan, levelFull})
+			rows = append(rows, pickRow{
+				host: h, state: "ready", mark: ui.Attention, detail: reason + "; " + plan,
+				short: level(h, reason) + " · duplicate entry · connect to fix",
+			})
 		case reason != "" && len(entries) > 0:
 			rows = append(rows, pickRow{
-				h, "connected", reason + "; " + path +
-					" also has a duplicate entry, which `kemory doctor --fix` removes",
-				level(h, reason) + " · duplicate entry: run kemory doctor --fix",
+				host: h, state: "connected", mark: ui.Attention,
+				detail: reason + "; " + path + " also has a duplicate entry, which `kemory doctor --fix` removes",
+				short:  level(h, reason) + " · duplicate entry: run kemory doctor --fix",
 			})
 		case reason != "":
-			rows = append(rows, pickRow{h, "connected", reason, level(h, reason)})
+			rows = append(rows, pickRow{host: h, state: "connected", detail: reason, short: level(h, reason)})
 		case !hosts.Installed(h):
 			// A discontinued client is only listed where it is still installed.
 			if !hosts.Discontinued(h) {
 				missing = append(missing, h)
 			}
+		case len(entries) > 0 && commandMissing(command):
+			// Connecting again writes the entry with a command that runs.
+			rows = append(rows, pickRow{
+				host: h, state: "ready", mark: ui.Attention,
+				detail: path + " starts Kemory with " + command + ", which is not installed; connecting again fixes it",
+				short:  "cannot start Kemory: " + filepath.Base(command) + " not found · connect to fix",
+			})
 		case len(entries) > 0 && needsHooks(h):
 			rows = append(rows, pickRow{
-				h, "ready", "add automatic memory hooks (MCP entry already in " + path + ")",
-				levelFull,
+				host: h, state: "ready", mark: ui.Connected,
+				detail: "add automatic memory hooks (MCP entry already in " + path + ")",
+				short:  levelTools + " · connect to make it " + levelFull,
 			})
 		case len(entries) > 0:
 			short := levelTools
 			if _, ok := memoryHooks[h]; ok {
 				short = levelFull
 			}
-			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path, short})
+			rows = append(rows, pickRow{host: h, state: "connected", detail: "MCP entry in " + path, short: short})
 		default:
 			rows = append(rows, pickRow{
-				h, "ready", strings.TrimPrefix(planned(g.env, h, g.profile.ServerName, covered).detail, "would "),
-				readyStatus(g.env, h),
+				host: h, state: "ready", mark: ui.Ready,
+				detail: strings.TrimPrefix(planned(g.env, h, g.profile.ServerName, covered).detail, "would "),
+				short:  readyStatus(g.env, h),
 			})
 		}
 	}

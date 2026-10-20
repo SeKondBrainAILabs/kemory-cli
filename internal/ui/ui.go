@@ -184,16 +184,20 @@ const (
 	Connected ClientState = iota // has Kemory
 	Ready                        // installed, can be connected
 	Missing                      // not installed here
+	Attention                    // needs something done to work as it should
 )
 
 // Detected is a row of the clients list: a green dot when the client has
-// Kemory and a grey ring when it does not, its name, and how it is
-// connected or what connecting adds. A client not installed here is dimmed
-// whole.
+// Kemory, a yellow one when it needs something done, and a grey ring when it
+// does not have Kemory; then its name, and how it is connected or what
+// connecting adds. A client not installed here is dimmed whole.
 func Detected(host string, state ClientState, status string) string {
 	switch state {
 	case Connected:
 		return lipgloss.NewStyle().Foreground(Mint).Render("●") + " " + nameCell(host, true) + dim.Render(status)
+	case Attention:
+		yellow := lipgloss.NewStyle().Foreground(Yellow)
+		return yellow.Render("●") + " " + nameCell(host, true) + yellow.Render(status)
 	case Ready:
 		return dim.Render("○") + " " + nameCell(host, true) + dim.Render(status)
 	}

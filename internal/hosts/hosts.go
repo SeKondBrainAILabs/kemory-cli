@@ -16,6 +16,10 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
+
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/jsonedit"
 )
 
 type host struct {
@@ -349,6 +353,56 @@ func KemoryEntries(name, path string) []string {
 		}
 	}
 	return kemory
+}
+
+// EntryCommand is the program the server entry in host's config at path
+// starts, or "" when the entry or its command cannot be read.
+func EntryCommand(name, path, server string) string {
+	h, ok := lookup(name)
+	if !ok {
+		return ""
+	}
+	var command any
+	if h.toml {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ""
+		}
+		doc := map[string]any{}
+		if _, err := toml.Decode(string(data), &doc); err != nil {
+			return ""
+		}
+		servers, _ := doc[tomlServersKey].(map[string]any)
+		entry, _ := servers[server].(map[string]any)
+		command = entry["command"]
+	} else {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ""
+		}
+		cfg, err := jsonedit.Parse(data)
+		if err != nil {
+			return ""
+		}
+		servers, err := cfg.Object(h.key)
+		if err != nil {
+			return ""
+		}
+		raw, _ := servers.Get(server)
+		var entry struct {
+			Command any `json:"command"`
+		}
+		if json.Unmarshal(raw, &entry) != nil {
+			return ""
+		}
+		command = entry.Command
+	}
+	// OpenCode keeps the command and its arguments in one list.
+	if list, ok := command.([]any); ok && len(list) > 0 {
+		command = list[0]
+	}
+	s, _ := command.(string)
+	return s
 }
 
 // Launch is how a host should start the bridge.

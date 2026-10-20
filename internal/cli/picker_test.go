@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,6 +21,13 @@ func pickerMachine(t *testing.T, answer string) string {
 	writeFile(t, filepath.Join(home, ".warp", ".mcp.json"), `{"mcpServers": {"kemory": {"command": "kemory"}}}`)
 	installApp(t, home, ".codex")
 	writeFile(t, filepath.Join(home, ".codex", "config.toml"), "[mcp_servers.kemory]\ncommand = \"kemory\"\nargs = [\"mcp\", \"serve\"]\n")
+	// kemory is installed; the plugin tools are not.
+	lookPath = func(name string) (string, error) {
+		if name == "kemory" {
+			return "/usr/local/bin/kemory", nil
+		}
+		return "", exec.ErrNotFound
+	}
 	interactive := stdinIsTerminal
 	stdinIsTerminal = func() bool { return true }
 	t.Cleanup(func() { stdinIsTerminal = interactive })
@@ -53,6 +61,22 @@ func TestConnectListsClientsAndConnectsTheReadyOnesOnEnter(t *testing.T) {
 	}
 	if !strings.Contains(out, "Connected as") {
 		t.Fatalf("the connection check must still run:\n%s", out)
+	}
+}
+
+func TestConnectOffersToFixAnEntryWhoseCommandIsGone(t *testing.T) {
+	home := pickerMachine(t, "\n")
+	gone := filepath.Join(home, "old", "kemory")
+	writeFile(t, filepath.Join(home, ".warp", ".mcp.json"), `{"mcpServers": {"kemory": {"command": "`+gone+`"}}}`)
+	code, out, errOut := run(t, "connect")
+	if code != 0 {
+		t.Fatalf("got %d\n%s\n%s", code, out, errOut)
+	}
+	if !strings.Contains(out+errOut, "[ready    ] warp") || !strings.Contains(out+errOut, "which is not installed") {
+		t.Fatalf("an entry whose command is gone must be offered for fixing:\n%s\n%s", out, errOut)
+	}
+	if strings.Contains(readFile(t, filepath.Join(home, ".warp", ".mcp.json")), gone) {
+		t.Fatal("connecting must rewrite the entry with a command that runs")
 	}
 }
 
