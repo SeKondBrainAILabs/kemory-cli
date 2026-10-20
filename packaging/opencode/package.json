@@ -1,0 +1,31 @@
+{
+  "name": "opencode-kemory",
+  "version": "0.0.0-dev",
+  "description": "Kemory memory for OpenCode: your memory summary at session start, and your prompts saved to Kemory",
+  "homepage": "https://kemory.sekondbrain.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SeKondBrainAILabs/kemory-cli.git",
+    "directory": "packaging/opencode"
+  },
+  "license": "MIT",
+  "author": "SeKondBrain Engineering <engineering@sekondbrain.ai>",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "kemory",
+    "memory",
+    "ai"
+  ],
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js",
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

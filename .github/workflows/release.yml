@@ -233,6 +233,69 @@ jobs:
       - name: Publish
         run: npm publish --access public --provenance
 
+  opencode-plugin:
+    # opencode-kemory, OpenCode's npm plugin, released with the CLI. npm takes
+    # trusted publishing only for a package that exists, so its first version
+    # is published by hand; until then this job skips.
+    needs: [goreleaser, npm]
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/opencode-kemory
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    defaults:
+      run:
+        working-directory: packaging/opencode
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Check the package exists
+        id: exists
+        run: |
+          if npm view opencode-kemory name > /dev/null 2>&1; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::opencode-kemory is not on npm yet; publish its first version by hand"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set the package version
+        if: steps.exists.outputs.publish == 'true'
+        env:
+          VERSION: ${{ needs.goreleaser.outputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version
+
+      - name: Verify the package
+        if: steps.exists.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          node --check index.js
+          npm pack --dry-run --json > /tmp/pack.json
+          node - <<'EOF'
+          const files = require("/tmp/pack.json")[0].files.map((f) => f.path).sort();
+          const expected = ["LICENSE", "README.md", "index.js", "package.json"];
+          console.log(files.join("\n"));
+          if (JSON.stringify(files) !== JSON.stringify(expected)) {
+            console.error(`::error::npm package files ${JSON.stringify(files)} != ${JSON.stringify(expected)}`);
+            process.exit(1);
+          }
+          EOF
+
+      - name: Publish
+        if: steps.exists.outputs.publish == 'true'
+        run: npm publish --access public --provenance
+
   pypi:
     needs: goreleaser
     if: ${{ !contains(github.ref_name, '-') }}
