@@ -8,10 +8,10 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 )
 
-// A host can reach Kemory without an entry kemory writes: Claude Code, Grok
-// and Codex through the Kemory plugin, Claude Desktop through the claude.ai
-// connector. A local entry on top of either gives the host every Kemory tool
-// twice.
+// A host can reach Kemory without an entry kemory writes: Claude Code, Grok,
+// Codex and Cursor through a Kemory plugin, Claude Desktop through the
+// claude.ai connector. A local entry on top of either gives the host every
+// Kemory tool twice, and Cursor's hooks capture each session twice.
 
 // connectorFreshness is how recently a claude.ai connector must have been
 // used to count. Reconnecting leaves the old connection behind, active but
@@ -31,6 +31,12 @@ func coveredElsewhere(env string, creds *config.Credentials, now time.Time) map[
 	}
 	if hosts.CodexPluginInstall() != "" && env == config.DefaultEnv {
 		covered["codex"] = "connected through the Kemory plugin (Codex plugin directory)"
+	}
+	// Cursor also loads the Claude Code plugins.
+	if path := hosts.CursorPluginManifest(); path != "" && env == config.DefaultEnv {
+		covered["cursor"] = "connected through the Kemory plugin (" + path + ")"
+	} else if path := hosts.ClaudeCodePluginLoaded(); path != "" && env == config.DefaultEnv {
+		covered["cursor"] = "connected through the Claude Code Kemory plugin, which Cursor loads (" + path + ")"
 	}
 	if creds != nil && hasClaudeAIConnector(creds, now) {
 		covered["claude-desktop"] = "connected through the claude.ai connector"

@@ -134,10 +134,15 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 		}
 		// A second entry would give the host every Kemory tool twice.
 		if reason := covered[h]; reason != "" {
-			lines = append(lines, hostResult{
+			r := hostResult{
 				host: h, detail: "already " + reason + " — nothing written", ok: true,
 				short: "already " + reason,
-			})
+			}
+			if len(named(hosts.KemoryEntries(h, hosts.ResolveConfig(h)), name)) > 0 || leftoverHooks(h) {
+				r.detail += "; an earlier connect left a duplicate, which `kemory doctor --fix` removes"
+				r.next = "Run `kemory doctor --fix` to remove the duplicate Kemory entry"
+			}
+			lines = append(lines, r)
 			continue
 		}
 		var r hostResult

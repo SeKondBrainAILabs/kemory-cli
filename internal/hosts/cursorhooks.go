@@ -106,3 +106,52 @@ func CursorHooksInstalled() bool {
 	}
 	return true
 }
+
+// CursorHooksFound reports whether Cursor's hooks file has any kemory hook.
+func CursorHooksFound() bool {
+	_, events, err := readHooks(CursorHooksPath())
+	if err != nil {
+		return false
+	}
+	for _, e := range cursorHookEvents {
+		raw, _ := events.Get(e.event)
+		if _, found, err := cursorWithoutKemory(raw); err == nil && found {
+			return true
+		}
+	}
+	return false
+}
+
+// RemoveCursorHooks takes kemory's hooks out of Cursor's hooks file, drops an
+// event they leave empty, and leaves every other hook as it was.
+func RemoveCursorHooks() error {
+	path := CursorHooksPath()
+	cfg, events, err := readHooks(path)
+	if err != nil {
+		return err
+	}
+	changed := false
+	for _, e := range cursorHookEvents {
+		raw, _ := events.Get(e.event)
+		handlers, found, err := cursorWithoutKemory(raw)
+		if err != nil {
+			return invalid(path, fmt.Sprintf("has a %s value that is not a list of hooks", e.event))
+		}
+		if !found {
+			continue
+		}
+		changed = true
+		if len(handlers) == 0 {
+			events.Delete(e.event)
+		} else if err := events.SetValue(e.event, handlers); err != nil {
+			return err
+		}
+	}
+	if !changed {
+		return nil
+	}
+	if err := cfg.SetObject("hooks", events); err != nil {
+		return err
+	}
+	return writeJSON(path, cfg)
+}
