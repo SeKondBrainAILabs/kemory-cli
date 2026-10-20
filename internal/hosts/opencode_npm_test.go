@@ -22,7 +22,9 @@ func TestOpenCodeNPMPluginIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != want {
+	// A Windows checkout may turn the line endings into CRLF.
+	lf := func(s string) string { return strings.ReplaceAll(s, "\r\n", "\n") }
+	if lf(string(got)) != lf(want) {
 		t.Fatal("packaging/opencode/index.js is stale: run UPDATE_OPENCODE_PLUGIN=1 go test ./internal/hosts")
 	}
 	for _, unwanted := range []string{commandPlaceholder, "Written by `kemory connect`"} {
