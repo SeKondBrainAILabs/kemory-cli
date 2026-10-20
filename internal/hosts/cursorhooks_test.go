@@ -91,3 +91,67 @@ func TestKemorysHookFilesDoNotMakeAnAppLookInstalled(t *testing.T) {
 		t.Fatal("a hooks file kemory wrote is not the app")
 	}
 }
+
+func TestRemoveCursorHooksKeepsTheUsersOwn(t *testing.T) {
+	home := setHome(t)
+	path := filepath.Join(home, ".cursor", "hooks.json")
+	mustWrite(t, path, `{"version": 1, "hooks": {"sessionStart": [{"command": "./hooks/mine.sh"}]}}`)
+	if _, err := InstallCursorHooks(LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	if !CursorHooksFound() {
+		t.Fatal("installed hooks not found")
+	}
+	if err := RemoveCursorHooks(); err != nil {
+		t.Fatal(err)
+	}
+	version, events := cursorEvents(t, path)
+	if version != 1 || len(events) != 1 || len(events["sessionStart"]) != 1 || events["sessionStart"][0].Command != "./hooks/mine.sh" {
+		t.Fatalf("version %d, events %+v", version, events)
+	}
+	if CursorHooksFound() {
+		t.Fatal("a kemory hook is left")
+	}
+}
+
+func TestCursorPluginDetection(t *testing.T) {
+	home := setHome(t)
+	if CursorPluginManifest() != "" || ClaudeCodePluginLoaded() != "" {
+		t.Fatal("no plugin installed")
+	}
+
+	plugins := filepath.Join(home, ".cursor", "plugins")
+	mustWrite(t, filepath.Join(plugins, "local", "other", ".cursor-plugin", "plugin.json"), `{"name": "other"}`)
+	cached := filepath.Join(plugins, "cache", "kemory-plugin", "kemory", "0.1.0")
+	mustWrite(t, filepath.Join(cached, ".cursor-plugin", "plugin.json"), `{"name": "kemory"}`)
+	if CursorPluginManifest() != "" {
+		t.Fatal("a download without .cache-complete is not an install")
+	}
+	mustWrite(t, filepath.Join(cached, ".cache-complete"), "")
+	if CursorPluginManifest() == "" {
+		t.Fatal("marketplace install not detected")
+	}
+	if err := os.RemoveAll(filepath.Join(plugins, "cache")); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(plugins, "local", "kemory-dev", ".cursor-plugin", "plugin.json"), `{"name": "kemory"}`)
+	if CursorPluginManifest() == "" {
+		t.Fatal("local install not detected")
+	}
+
+	// Cursor loads the Claude Code plugin only when it is installed and enabled.
+	settings := filepath.Join(home, ".claude", "settings.json")
+	mustWrite(t, settings, `{"enabledPlugins": {"kemory@kemory": true}}`)
+	if ClaudeCodePluginLoaded() != "" {
+		t.Fatal("enabled but not installed")
+	}
+	mustWrite(t, filepath.Join(home, ".claude", "plugins", "installed_plugins.json"),
+		`{"version": 2, "plugins": {"kemory@kemory": [{"scope": "user", "version": "0.16.0"}]}}`)
+	if ClaudeCodePluginLoaded() != settings {
+		t.Fatal("installed and enabled plugin not detected")
+	}
+	mustWrite(t, settings, `{"enabledPlugins": {"kemory@kemory": false}}`)
+	if ClaudeCodePluginLoaded() != "" {
+		t.Fatal("a disabled plugin is not loaded")
+	}
+}

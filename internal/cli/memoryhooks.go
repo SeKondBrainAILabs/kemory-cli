@@ -13,6 +13,10 @@ type memoryHook struct {
 	// approve is what the user must do before the agent runs the hooks, if
 	// anything.
 	approve string
+	// found and remove find and take out any kemory hook, for a host that
+	// can reach Kemory another way.
+	found  func() bool
+	remove func() error
 }
 
 var memoryHooks = map[string]memoryHook{
@@ -26,6 +30,8 @@ var memoryHooks = map[string]memoryHook{
 		install:   hosts.InstallCursorHooks,
 		installed: hosts.CursorHooksInstalled,
 		path:      hosts.CursorHooksPath,
+		found:     hosts.CursorHooksFound,
+		remove:    hosts.RemoveCursorHooks,
 	},
 	"vscode": {
 		install:   hosts.InstallCopilotHooks,
@@ -65,4 +71,11 @@ func addHooks(host string, launch hosts.Launch) (string, error) {
 		line += "; " + h.approve
 	}
 	return line, nil
+}
+
+// leftoverHooks reports whether host has kemory hooks that a covered host
+// does not need.
+func leftoverHooks(host string) bool {
+	h, ok := memoryHooks[host]
+	return ok && h.found != nil && h.found()
 }
