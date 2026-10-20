@@ -301,6 +301,7 @@ func newConnectCmd(g *globals) *cobra.Command {
 	cmd.Flags().StringSliceVar(&hostNames, "host", []string{"claude-code"}, "MCP host(s) to configure: "+hostChoices()+".")
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "Print the sign-in URL but don't open it.")
 	cmd.Flags().BoolVar(&local, "local", false, "Use a machine-local API key from KEMORY_API_KEY instead of signing in (dev mode).")
+	cmd.AddCommand(newConnectCopilotCloudCmd(g))
 	return cmd
 }
 

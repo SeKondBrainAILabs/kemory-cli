@@ -59,6 +59,7 @@ the copy you installed.
 | `kemory mcp serve` | The stdio MCP bridge an MCP client launches |
 | `kemory hook session-start`, `hook capture` | What a coding agent's hooks run: load your Kemory context when a session starts, save the session when it ends ([Hooks](#hooks)) |
 | `kemory connect` | Sign in if needed, wire an MCP client and check the connection |
+| `kemory connect copilot-cloud` | Give GitHub Copilot's cloud agent automatic memory in the current repository ([Copilot cloud agent](#copilot-cloud-agent)) |
 | `kemory mcp install` | Write the kemory entry into MCP clients (`--host all` for every installed one) |
 | `kemory doctor` | Check sign-in, network, API and MCP clients; `--fix` wires or cleans them |
 | `kemory orgs`, `kemory use` | List your organisations and switch the active one |
@@ -156,6 +157,24 @@ it is open, `connect`, `mcp install` and `doctor --fix` offer to quit it, make
 the change and open it again (`doctor --fix --yes` does so without asking).
 Run from the terminal inside the Claude app, which would close with it, they
 offer to open Terminal and continue there instead (macOS).
+
+### Copilot cloud agent
+
+GitHub Copilot's cloud agent works in a sandbox where no one signs in, so it
+reaches Kemory with an API key. Run `kemory connect copilot-cloud` in the
+repository it works on, with [gh](https://cli.github.com) signed in. It:
+
+1. writes `.github/hooks/kemory.json`, the hooks that load your memory when a
+   session starts and save the session (commit and push it);
+2. creates an API key for the repository, or a new one on a re-run, and stores
+   it as the repository's Agents secrets `KEMORY_API_KEY` (for the hooks) and
+   `COPILOT_MCP_KEMORY_API_KEY` (for the MCP server);
+3. prints the MCP configuration to paste in the repository's Settings →
+   Copilot → MCP servers, and the Kemory host to add to Settings → Copilot →
+   Internet access, so the hooks can reach it.
+
+Without gh it prints the key once, to add as both secrets yourself. The hooks
+also take `KEMORY_API_KEY` anywhere else no one signs in.
 
 ## Exit codes
 

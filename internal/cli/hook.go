@@ -13,6 +13,7 @@ import (
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/api"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hook"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/render"
@@ -106,7 +107,7 @@ func newHookSessionStartCmd(g *globals) *cobra.Command {
 			}
 			var out []byte
 			finished := withDeadline(func() {
-				creds, err := auth.ValidCredentials(g.env, false)
+				creds, err := hookCredentials(g.env)
 				if err != nil || creds == nil {
 					hookDebug("not signed in to %s: %v", g.env, err)
 					return
@@ -185,7 +186,7 @@ func capture(env, agent string, e hook.Event) {
 		hookDebug("nothing new to store")
 		return
 	}
-	creds, err := auth.ValidCredentials(env, false)
+	creds, err := hookCredentials(env)
 	if err != nil || creds == nil {
 		hookDebug("not signed in to %s: %v", env, err)
 		return
@@ -217,4 +218,21 @@ func joinAgents() string {
 		out += a
 	}
 	return out
+}
+
+// hookCredentials are the credentials for env: KEMORY_API_KEY where it is
+// set, as in Copilot's cloud agent, where no one signs in, else the signed-in
+// ones.
+func hookCredentials(env string) (*config.Credentials, error) {
+	if key := os.Getenv("KEMORY_API_KEY"); key != "" {
+		// An API key, as `login --local` keeps it: never refreshed.
+		return &config.Credentials{
+			AccessToken: key,
+			Issuer:      "local",
+			ClientID:    "local",
+			KemoryURL:   config.EnvProfile(env).KemoryURL,
+			Env:         env,
+		}, nil
+	}
+	return auth.ValidCredentials(env, false)
 }
