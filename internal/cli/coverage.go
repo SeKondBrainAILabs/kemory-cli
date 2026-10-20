@@ -8,9 +8,10 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 )
 
-// A host can reach Kemory without an entry kemory writes: Claude Code and Grok
-// through the Kemory plugin, Claude Desktop through the claude.ai connector. A local
-// entry on top of either gives the host every Kemory tool twice.
+// A host can reach Kemory without an entry kemory writes: Claude Code, Grok
+// and Codex through the Kemory plugin, Claude Desktop through the claude.ai
+// connector. A local entry on top of either gives the host every Kemory tool
+// twice.
 
 // connectorFreshness is how recently a claude.ai connector must have been
 // used to count. Reconnecting leaves the old connection behind, active but
@@ -27,6 +28,9 @@ func coveredElsewhere(env string, creds *config.Credentials, now time.Time) map[
 	}
 	if hosts.GrokPluginConfig() != "" && env == config.DefaultEnv {
 		covered["grok"] = "connected through the Kemory plugin (`grok plugin list`)"
+	}
+	if hosts.CodexPluginInstall() != "" && env == config.DefaultEnv {
+		covered["codex"] = "connected through the Kemory plugin (Codex plugin directory)"
 	}
 	if creds != nil && hasClaudeAIConnector(creds, now) {
 		covered["claude-desktop"] = "connected through the claude.ai connector"
@@ -72,3 +76,20 @@ func named(entries []string, server string) []string {
 	}
 	return out
 }
+
+// toolsOnlyPlugins are the hosts whose Kemory plugin brings the tools but no
+// hooks: OpenAI's plugin directory does not accept plugins with hooks. kemory
+// still adds the memory hooks there, which use the CLI's own sign-in, not the
+// plugin.
+var toolsOnlyPlugins = map[string]bool{"codex": true}
+
+// besidePlugin is what a host covered by a tools-only plugin still lacks: the
+// kemory entries named server in its config at path, which duplicate the
+// plugin's tools, and whether the memory hooks are missing.
+func besidePlugin(host, path, server string) ([]string, bool) {
+	return named(hosts.KemoryEntries(host, path), server), needsHooks(host)
+}
+
+// pluginWithHooks is the doctor detail for a host whose plugin brings the
+// tools and kemory the hooks.
+const pluginWithHooks = "Kemory plugin for tools, hooks from kemory-cli"

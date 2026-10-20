@@ -64,13 +64,7 @@ var registry = []host{
 	},
 	{
 		name: "codex", toml: true,
-		paths: func() []string {
-			dir := os.Getenv("CODEX_HOME")
-			if dir == "" {
-				dir = filepath.Join(home(), ".codex")
-			}
-			return []string{filepath.Join(dir, "config.toml")}
-		},
+		paths: func() []string { return []string{filepath.Join(codexHome(), "config.toml")} },
 	},
 	{name: "cursor", key: "mcpServers", paths: inHome(".cursor", "mcp.json"), macApps: []string{"Cursor.app"}},
 	{

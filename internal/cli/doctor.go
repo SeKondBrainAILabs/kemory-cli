@@ -343,6 +343,11 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 		reason := covered[host]
 		dupes := named(entries, d.g.profile.ServerName)
 		switch {
+		case reason != "" && toolsOnlyPlugins[host]:
+			wired++
+			if d.hooksBesidePlugin(label, host, path, reason, dupes, launch) {
+				fixable = true
+			}
 		case reason != "" && len(dupes) > 0:
 			wired++
 			if d.removeDuplicate(label, host, path, reason, dupes) {
@@ -443,6 +448,45 @@ func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []strin
 	default:
 		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate entry from %s; %s", path, reason), orDefault(note, "restart "+host)))
 	}
+	return false
+}
+
+// hooksBesidePlugin handles a host whose Kemory plugin brings the tools but no
+// hooks, which kemory adds. A kemory entry there gives the host every tool
+// twice. It reports whether `doctor --fix` would change something.
+func (d *doctor) hooksBesidePlugin(label, host, path, reason string, dupes []string, launch hosts.Launch) bool {
+	needed := needsHooks(host)
+	if !d.fix {
+		switch {
+		case len(dupes) > 0:
+			d.emit(label, render.Skip, fmt.Sprintf("duplicate tools: already %s, and %s also has a kemory entry. `kemory doctor --fix` removes it.", reason, path))
+			return true
+		case needed:
+			d.emit(label, render.Skip, "already "+reason+" — tools only, no automatic memory. `kemory doctor --fix` adds the hooks")
+			return true
+		}
+		d.emit(label, render.Pass, pluginWithHooks+" ("+memoryHooks[host].path()+")")
+		return false
+	}
+	detail := pluginWithHooks
+	if len(dupes) > 0 {
+		if err := hosts.RemoveEntries(host, path, dupes); err != nil {
+			d.emit(label, render.Fail, err.Error())
+			return false
+		}
+		detail = joinNote(detail, "removed the duplicate entry from "+path+"; restart "+host)
+	}
+	if needed {
+		hooks, err := addHooks(host, launch)
+		if err != nil {
+			d.emit(label, render.Fail, "memory hooks not added: "+err.Error())
+			return false
+		}
+		detail = joinNote(detail, hooks)
+	} else {
+		detail += " (" + memoryHooks[host].path() + ")"
+	}
+	d.emit(label, render.Pass, detail)
 	return false
 }
 
@@ -567,6 +611,8 @@ func (d *doctor) plain(check string, status render.Status, detail string) (strin
 	switch {
 	case strings.Contains(detail, "removed"):
 		return label, detail
+	case strings.Contains(detail, pluginWithHooks):
+		return label, levelFull + " · " + pluginWithHooks
 	case strings.Contains(detail, "claude.ai connector"):
 		return label, via(host, "connector")
 	case strings.Contains(detail, "Kemory plugin"):

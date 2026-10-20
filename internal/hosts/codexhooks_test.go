@@ -149,3 +149,23 @@ func TestCopilotHooksFileServesVSCodeAndTheCLI(t *testing.T) {
 		t.Fatal("COPILOT_HOME moves the hooks")
 	}
 }
+
+func TestCodexPluginInstallFollowsCodexHome(t *testing.T) {
+	home := setHome(t)
+	codexHome := filepath.Join(home, "elsewhere")
+	t.Setenv("CODEX_HOME", codexHome)
+	if got := CodexPluginInstall(); got != "" {
+		t.Fatalf("no plugin installed, got %q", got)
+	}
+	// The same file under ~/.codex does not count when CODEX_HOME is set.
+	record := filepath.Join("plugins", "cache", "openai-curated-remote", "app-6a85afc169ac819185a36cd38c9fe432", ".codex-remote-plugin-install.json")
+	mustWrite(t, filepath.Join(home, ".codex", record), `{"schema_version":1}`)
+	if got := CodexPluginInstall(); got != "" {
+		t.Fatalf("read the plugin from ~/.codex despite CODEX_HOME: %q", got)
+	}
+	want := filepath.Join(codexHome, record)
+	mustWrite(t, want, `{"schema_version":1,"remote_plugin_id":"plugin_asdk_app_6a85afc169ac819185a36cd38c9fe432"}`)
+	if got := CodexPluginInstall(); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

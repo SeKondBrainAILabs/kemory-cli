@@ -123,7 +123,13 @@ func installHosts(g *globals, creds *config.Credentials, hostNames []string, con
 	var lines []hostResult
 	for _, h := range targets {
 		if dryRun {
-			lines = append(lines, planned(g.env, h, covered))
+			lines = append(lines, planned(g.env, h, name, covered))
+			continue
+		}
+		if reason := covered[h]; reason != "" && toolsOnlyPlugins[h] {
+			var r hostResult
+			g.screen.spin(h, func() { r = hooksBesidePlugin(h, reason, name, launch, written) })
+			lines = append(lines, r)
 			continue
 		}
 		// A second entry would give the host every Kemory tool twice.
@@ -221,6 +227,41 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 			r.next = "Open " + ui.AppName(h) + " and approve the memory hooks with /hooks"
 		}
 	}
+	return r
+}
+
+// hooksBesidePlugin connects a host whose Kemory plugin brings the tools but
+// no hooks: it adds the memory hooks, and removes a kemory entry that would
+// give the host every tool twice. It records written hosts in written.
+func hooksBesidePlugin(h, reason, server string, launch hosts.Launch, written map[string]bool) hostResult {
+	path := hosts.ResolveConfig(h)
+	dupes, needed := besidePlugin(h, path, server)
+	r := hostResult{host: h, detail: "already " + reason, ok: true, short: level(h, reason) + " · Kemory plugin"}
+	if len(dupes) > 0 {
+		if err := hosts.RemoveEntries(h, path, dupes); err != nil {
+			return hostResult{host: h, detail: err.Error(), short: err.Error()}
+		}
+		written[h] = true
+		r.restart = true
+		r.detail = joinNote(r.detail, "removed the kemory entry in "+path+", which listed every tool twice")
+	}
+	if !needed {
+		if len(dupes) == 0 {
+			r.detail = joinNote(r.detail, "automatic memory hooks already in "+memoryHooks[h].path()+" — nothing written")
+		}
+		return r
+	}
+	hooks, err := addHooks(h, launch)
+	if err != nil {
+		r.detail = joinNote(r.detail, "memory hooks not added: "+err.Error())
+		r.short = levelTools + " · Kemory plugin · could not add full memory"
+		return r
+	}
+	written[h] = true
+	r.detail = joinNote(r.detail, hooks)
+	r.short = levelFull + " · Kemory plugin"
+	r.restart = false
+	r.next = "Open " + ui.AppName(h) + " and approve the memory hooks with /hooks"
 	return r
 }
 
