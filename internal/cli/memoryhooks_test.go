@@ -208,3 +208,30 @@ func TestCodexPluginAndEntryAreDuplicates(t *testing.T) {
 		t.Fatalf("connect must remove only the duplicate:\n%s", got)
 	}
 }
+
+func TestDoctorFixesAnEntryWhoseCommandIsGone(t *testing.T) {
+	home := setHome(t)
+	fakeReleases(t, `[]`)
+	installApp(t, home, ".warp")
+	// Forward slashes keep a Windows path valid inside the JSON below.
+	gone := filepath.ToSlash(filepath.Join(home, "old", "kemory"))
+	config := filepath.Join(home, ".warp", ".mcp.json")
+	writeFile(t, config, `{"mcpServers": {"kemory": {"command": "`+gone+`"}}}`)
+
+	detail := func(r doctorReport) string {
+		for _, c := range r.Checks {
+			if c.Check == "mcp host: warp" && c.Detail != nil {
+				return *c.Detail
+			}
+		}
+		return ""
+	}
+	_, report := runDoctor(t)
+	if statusOf(report, "mcp host: warp") != "fail" || !strings.Contains(detail(report), "cannot start Kemory") {
+		t.Fatalf("a missing command must be reported: %+v", report)
+	}
+	_, report = runDoctor(t, "--fix")
+	if statusOf(report, "mcp host: warp") != "pass" || strings.Contains(readFile(t, config), gone) {
+		t.Fatalf("--fix must rewrite the entry: %+v\n%s", report, readFile(t, config))
+	}
+}

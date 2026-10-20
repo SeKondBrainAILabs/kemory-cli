@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,13 +20,6 @@ func pickerMachine(t *testing.T, answer string) string {
 	writeFile(t, filepath.Join(home, ".warp", ".mcp.json"), `{"mcpServers": {"kemory": {"command": "kemory"}}}`)
 	installApp(t, home, ".codex")
 	writeFile(t, filepath.Join(home, ".codex", "config.toml"), "[mcp_servers.kemory]\ncommand = \"kemory\"\nargs = [\"mcp\", \"serve\"]\n")
-	// kemory is installed; the plugin tools are not.
-	lookPath = func(name string) (string, error) {
-		if name == "kemory" {
-			return "/usr/local/bin/kemory", nil
-		}
-		return "", exec.ErrNotFound
-	}
 	interactive := stdinIsTerminal
 	stdinIsTerminal = func() bool { return true }
 	t.Cleanup(func() { stdinIsTerminal = interactive })

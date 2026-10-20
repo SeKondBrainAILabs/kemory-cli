@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -342,6 +343,10 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 		label := "mcp host: " + host
 		reason := covered[host]
 		dupes := named(entries, d.g.profile.ServerName)
+		command := ""
+		if len(dupes) > 0 {
+			command = hosts.EntryCommand(host, path, dupes[0])
+		}
 		switch {
 		case reason != "" && toolsOnlyPlugins[host]:
 			wired++
@@ -356,6 +361,33 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 		case reason != "" && installed:
 			wired++
 			d.emit(label, render.Pass, reason)
+		case reason == "" && installed && commandMissing(command):
+			// The entry starts a kemory that is no longer installed, so the
+			// client fails to start Kemory. Writing it again fixes it.
+			if !d.fix {
+				fixable = true
+				d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed. `kemory doctor --fix` rewrites its entry")
+				continue
+			}
+			done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
+				return hosts.WriteEntry(host, path, d.g.profile.ServerName, launch)
+			})
+			switch {
+			case err != nil:
+				d.emit(label, render.Fail, err.Error())
+				continue
+			case !done:
+				d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed — "+note)
+				continue
+			}
+			wired++
+			detail := joinNote("rewrote the kemory entry in "+path, orDefault(note, "restart "+ui.AppName(host)))
+			if hooks, err := addHooks(host, launch); err != nil {
+				detail = joinNote(detail, "memory hooks not added: "+err.Error())
+			} else {
+				detail = joinNote(detail, hooks)
+			}
+			d.emit(label, render.Pass, detail)
 		case len(entries) > 0 && installed && needsHooks(host):
 			wired++
 			if !d.fix {

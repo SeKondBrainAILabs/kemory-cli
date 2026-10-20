@@ -41,7 +41,13 @@ func setHome(t *testing.T) string {
 	})
 	// No test runs a real `claude` or `grok`: by default neither is installed.
 	look, runner := lookPath, runTool
-	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	// kemory is installed; the plugin tools are not.
+	lookPath = func(name string) (string, error) {
+		if name == "kemory" {
+			return "/usr/local/bin/kemory", nil
+		}
+		return "", exec.ErrNotFound
+	}
 	runTool = func(name string, args ...string) ([]byte, error) {
 		t.Fatalf("a test ran %s %v", name, args)
 		return nil, nil
