@@ -57,7 +57,7 @@ var memoryHooks = map[string]memoryHook{
 	"opencode": {
 		install:   hosts.InstallOpenCodePlugin,
 		installed: hosts.OpenCodePluginInstalled,
-		path:      hosts.OpenCodePluginPath,
+		path:      hosts.OpenCodeMemoryPath,
 	},
 }
 

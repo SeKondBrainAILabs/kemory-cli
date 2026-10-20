@@ -3,13 +3,18 @@ package hosts
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/jsonedit"
 )
 
-// OpenCode loads every file in its plugins directory at startup. Kemory's
-// plugin there loads the memory summary into the system prompt and saves the
+// OpenCode installs the npm packages in its config's plugin list, and loads
+// every file in its plugins directory, at startup. Kemory's plugin, either
+// way, loads the memory summary into the system prompt and saves the
 // session's prompts, through `kemory hook`. OpenCode asks no approval for it.
 
 //go:embed opencode.js
@@ -75,19 +80,139 @@ function kemoryCommand() {
 `
 }
 
-// InstallOpenCodePlugin writes kemory's plugin into OpenCode's plugins
-// directory, replacing the one an earlier connect wrote.
-func InstallOpenCodePlugin(launch Launch) (string, error) {
-	path := OpenCodePluginPath()
-	source, err := openCodePluginFor(launch)
-	if err != nil {
-		return path, err
+// openCodePackage is the npm package OpenCode installs kemory's plugin from.
+const openCodePackage = "opencode-kemory"
+
+// fromNPM reports whether the npm package starts kemory the way launch does.
+// It finds kemory on PATH or runs it through npx, for the default
+// environment; any other launch keeps a plugin file of its own.
+func fromNPM(launch Launch) bool {
+	args := strings.Join(launch.Args, " ")
+	switch launch.Command {
+	case "kemory":
+		return args == "--env prod mcp serve"
+	case "npx":
+		return args == "-y kemory --env prod mcp serve"
 	}
-	return path, writeFile(path, []byte(source))
+	return false
 }
 
-// OpenCodePluginInstalled reports whether kemory's OpenCode plugin is there.
-func OpenCodePluginInstalled() bool {
+// InstallOpenCodePlugin adds the opencode-kemory package to OpenCode's plugin
+// list, or for a launch it cannot follow writes kemory's plugin into the
+// plugins directory. Either one replaces the other, since OpenCode would load
+// both.
+func InstallOpenCodePlugin(launch Launch) (string, error) {
+	config := ResolveConfig("opencode")
+	if !fromNPM(launch) {
+		path := OpenCodePluginPath()
+		source, err := openCodePluginFor(launch)
+		if err != nil {
+			return path, err
+		}
+		if err := setOpenCodePackage(config, false); err != nil {
+			return path, err
+		}
+		return path, writeFile(path, []byte(source))
+	}
+	if err := setOpenCodePackage(config, true); err != nil {
+		return config, err
+	}
+	if openCodeFileInstalled() {
+		if err := os.Remove(OpenCodePluginPath()); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return config, err
+		}
+	}
+	return config, nil
+}
+
+// setOpenCodePackage adds the package to, or takes it out of, the plugin list
+// in the OpenCode config at path.
+func setOpenCodePackage(path string, add bool) error {
+	cfg, list, err := openCodePlugins(path)
+	if err != nil || hasOpenCodePackage(list) == add {
+		return err
+	}
+	if add {
+		list = append(list, openCodePackage)
+	} else {
+		kept := list[:0]
+		for _, p := range list {
+			if !isOpenCodePackage(p) {
+				kept = append(kept, p)
+			}
+		}
+		list = kept
+	}
+	if len(list) == 0 {
+		cfg.Delete("plugin")
+	} else if err := cfg.SetValue("plugin", list); err != nil {
+		return err
+	}
+	return writeJSON(path, cfg)
+}
+
+// openCodePlugins reads the config at path and its plugin list.
+func openCodePlugins(path string) (*jsonedit.Object, []any, error) {
+	cfg, _, err := readJSON(path, "mcp")
+	if err != nil {
+		return nil, nil, err
+	}
+	var list []any
+	if raw, ok := cfg.Get("plugin"); ok && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, nil, invalid(path, "has a plugin that is not a JSON list")
+		}
+	}
+	return cfg, list, nil
+}
+
+// isOpenCodePackage reports whether plugin names the package, at any version.
+func isOpenCodePackage(plugin any) bool {
+	name, _ := plugin.(string)
+	return name == openCodePackage || strings.HasPrefix(name, openCodePackage+"@")
+}
+
+func hasOpenCodePackage(list []any) bool {
+	for _, p := range list {
+		if isOpenCodePackage(p) {
+			return true
+		}
+	}
+	return false
+}
+
+// openCodeFileInstalled reports whether kemory's plugin file is there.
+func openCodeFileInstalled() bool {
 	data, err := os.ReadFile(OpenCodePluginPath())
 	return err == nil && strings.Contains(string(data), "export const KemoryMemory")
+}
+
+// OpenCodePluginInstalled reports whether OpenCode loads kemory's plugin: the
+// package, or a plugin file for a launch the package cannot follow. A file an
+// older kemory wrote for the default launch is due to be replaced.
+func OpenCodePluginInstalled() bool {
+	if _, list, err := openCodePlugins(ResolveConfig("opencode")); err == nil && hasOpenCodePackage(list) {
+		return true
+	}
+	if !openCodeFileInstalled() {
+		return false
+	}
+	data, _ := os.ReadFile(OpenCodePluginPath())
+	_, rest, _ := strings.Cut(string(data), "const KEMORY = ")
+	line, _, _ := strings.Cut(rest, "\n")
+	var command []string
+	if json.Unmarshal([]byte(line), &command) != nil || len(command) == 0 {
+		return true
+	}
+	return !fromNPM(Launch{Command: command[0], Args: append(command[1:], "mcp", "serve")})
+}
+
+// OpenCodeMemoryPath is the file that gives OpenCode kemory's plugin.
+func OpenCodeMemoryPath() string {
+	if openCodeFileInstalled() {
+		if _, list, err := openCodePlugins(ResolveConfig("opencode")); err != nil || !hasOpenCodePackage(list) {
+			return OpenCodePluginPath()
+		}
+	}
+	return ResolveConfig("opencode")
 }

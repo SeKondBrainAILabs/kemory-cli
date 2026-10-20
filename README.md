@@ -97,10 +97,12 @@ For VS Code and the Copilot CLI they write `~/.copilot/hooks/kemory.json`,
 which both run (in VS Code through the `chat.useHooks` setting, on by
 default). kemory owns that file and rewrites it on every connect.
 
-For OpenCode they write a plugin, `~/.config/opencode/plugins/kemory.js`, that
-does the same: it adds your memory to the system prompt when a session starts
-and saves your prompts as the session goes. Connecting again replaces it, so
-keep your own plugins in other files.
+For OpenCode they add the `opencode-kemory` plugin to the `plugin` list in
+`opencode.json`, which OpenCode installs from npm. It does the same: it adds
+your memory to the system prompt when a session starts and saves your prompts
+as the session goes. Connected to an environment other than the default, they
+write the plugin as `~/.config/opencode/plugins/kemory.js` instead, which
+connecting again replaces, so keep your own plugins in other files.
 
 For every other client they write an MCP entry. The entry only starts
 `kemory mcp serve`; no token or key is written into the client's config, and
@@ -126,7 +128,7 @@ everything else in the file is left as it was.
 | `droid` | Factory Droid | `~/.factory/mcp.json`, plus memory hooks in `~/.factory/hooks.json` (or the `hooks` in `~/.factory/settings.json` when you keep yours there) |
 | `zed` | Zed | `~/.config/zed/settings.json` (`%APPDATA%\Zed\settings.json` on Windows), under `context_servers`; your comments in the file are kept |
 | `warp` | Warp | `~/.warp/.mcp.json` |
-| `opencode` | OpenCode | `~/.config/opencode/opencode.json`, plus the memory plugin in `~/.config/opencode/plugins/kemory.js` |
+| `opencode` | OpenCode | `~/.config/opencode/opencode.json`, plus `opencode-kemory` in its `plugin` list |
 
 On Windows the files under `Library/Application Support` and `.config` live in
 `%APPDATA%` instead, except OpenCode's, which stay in `~\.config\opencode`. Grok also reads `~/.claude.json`, so the `claude-code`

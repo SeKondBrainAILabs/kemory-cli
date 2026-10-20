@@ -56,6 +56,60 @@ func TestOpenCodePluginStartsKemoryTheWayTheEntryDoes(t *testing.T) {
 	}
 }
 
+func TestOpenCodeLoadsThePackageInsteadOfAPluginFile(t *testing.T) {
+	setHome(t)
+	config := ResolveConfig("opencode")
+	mustWrite(t, config, `{"plugin": ["opencode-helicone-session"], "model": "m"}`)
+	// An older kemory wrote the plugin file for the same launch.
+	if _, err := InstallOpenCodePlugin(LaunchFor("india")); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, OpenCodePluginPath(), strings.Replace(read(t, OpenCodePluginPath()), `"india"`, `"prod"`, 1))
+	if OpenCodePluginInstalled() {
+		t.Fatal("a plugin file for the default launch is due to be replaced")
+	}
+	path, err := InstallOpenCodePlugin(LaunchFor("prod"))
+	if err != nil || path != config {
+		t.Fatalf("got %q %v", path, err)
+	}
+	var cfg struct {
+		Plugin []string `json:"plugin"`
+		Model  string   `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(read(t, config)), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.Plugin, " ") != "opencode-helicone-session opencode-kemory" || cfg.Model != "m" {
+		t.Fatalf("config:\n%s", read(t, config))
+	}
+	if _, err := os.Stat(OpenCodePluginPath()); !os.IsNotExist(err) {
+		t.Fatal("the plugin file is still there, so OpenCode loads kemory twice")
+	}
+	if !OpenCodePluginInstalled() || OpenCodeMemoryPath() != config {
+		t.Fatal("the package is not detected")
+	}
+	if _, err := InstallOpenCodePlugin(LaunchFor("prod")); err != nil || strings.Count(read(t, config), "opencode-kemory") != 1 {
+		t.Fatalf("connecting again: %v\n%s", err, read(t, config))
+	}
+
+	// Another environment takes the package out again.
+	if _, err := InstallOpenCodePlugin(LaunchFor("india")); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(read(t, config), "opencode-kemory") || !OpenCodePluginInstalled() || OpenCodeMemoryPath() != OpenCodePluginPath() {
+		t.Fatalf("config:\n%s", read(t, config))
+	}
+}
+
+func TestOpenCodeRefusesAPluginThatIsNotAList(t *testing.T) {
+	setHome(t)
+	config := ResolveConfig("opencode")
+	mustWrite(t, config, `{"plugin": "opencode-helicone-session"}`)
+	if _, err := InstallOpenCodePlugin(LaunchFor("prod")); err == nil || read(t, config) != `{"plugin": "opencode-helicone-session"}` {
+		t.Fatalf("got %v", err)
+	}
+}
+
 // harness drives the plugin the way OpenCode does, against a fake kemory
 // that records each call.
 const harness = `
