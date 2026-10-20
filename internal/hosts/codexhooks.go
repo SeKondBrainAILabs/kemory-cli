@@ -63,13 +63,17 @@ var geminiHooks = groupedHooks{
 	},
 }
 
+// codexHome is Codex's home directory, $CODEX_HOME or ~/.codex.
+func codexHome() string {
+	if dir := os.Getenv("CODEX_HOME"); dir != "" {
+		return dir
+	}
+	return filepath.Join(home(), ".codex")
+}
+
 // CodexHooksPath is Codex's user-level hooks file.
 func CodexHooksPath() string {
-	dir := os.Getenv("CODEX_HOME")
-	if dir == "" {
-		dir = filepath.Join(home(), ".codex")
-	}
-	return filepath.Join(dir, "hooks.json")
+	return filepath.Join(codexHome(), "hooks.json")
 }
 
 // GeminiSettingsPath is Gemini CLI's user settings file, which holds its hooks

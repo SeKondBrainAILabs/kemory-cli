@@ -16,9 +16,13 @@ import (
 // pluginTools is the command each plugin host is installed through.
 var pluginTools = map[string]string{"claude-code": "claude", "grok": "grok"}
 
-// planned says what connecting host would do, without doing it.
-func planned(env, host string, covered map[string]string) hostResult {
+// planned says what connecting host would do, without doing it. server is
+// the name of the env's kemory entry.
+func planned(env, host, server string, covered map[string]string) hostResult {
 	if reason := covered[host]; reason != "" {
+		if plan := planBesidePlugin(host, server); toolsOnlyPlugins[host] && plan != "" {
+			return hostResult{host: host, detail: "already " + reason + "; would " + plan, ok: true}
+		}
 		return hostResult{host: host, detail: "already " + reason + " — nothing to do", ok: true}
 	}
 	note := ""
@@ -40,6 +44,21 @@ func planned(env, host string, covered map[string]string) hostResult {
 		}
 	}
 	return hostResult{host: host, detail: joinNote(detail, note), ok: true}
+}
+
+// planBesidePlugin says what connecting a host covered by a tools-only plugin
+// would still change, or "".
+func planBesidePlugin(host, server string) string {
+	path := hosts.ResolveConfig(host)
+	dupes, needed := besidePlugin(host, path, server)
+	var steps []string
+	if len(dupes) > 0 {
+		steps = append(steps, "remove the duplicate kemory entry from "+path)
+	}
+	if needed {
+		steps = append(steps, "add memory hooks to "+memoryHooks[host].path())
+	}
+	return strings.Join(steps, " and ")
 }
 
 // pickRow is one detected host in the picker.
@@ -66,8 +85,12 @@ const levelLegend = levelFull + ": loads and saves your memory on its own · " +
 var pluginLevel = map[string]string{"claude-code": levelFull, "grok": levelTools}
 
 // level is what a covered host gets from Kemory, from its coverage reason.
+// A tools-only plugin is automatic once kemory's hooks are in.
 func level(host, reason string) string {
-	if strings.Contains(reason, "connector") {
+	switch {
+	case strings.Contains(reason, "connector"):
+		return levelTools
+	case toolsOnlyPlugins[host] && needsHooks(host):
 		return levelTools
 	}
 	return orDefault(pluginLevel[host], levelFull)
@@ -108,7 +131,13 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 		path := hosts.ResolveConfig(h)
 		entries := named(hosts.KemoryEntries(h, path), g.profile.ServerName)
 		reason := covered[h]
+		plan := ""
+		if reason != "" && toolsOnlyPlugins[h] {
+			plan = planBesidePlugin(h, g.profile.ServerName)
+		}
 		switch {
+		case plan != "":
+			rows = append(rows, pickRow{h, "ready", reason + "; " + plan, levelFull})
 		case reason != "" && len(entries) > 0:
 			rows = append(rows, pickRow{
 				h, "connected", reason + "; " + path +
@@ -135,7 +164,7 @@ func pickHosts(g *globals, creds *config.Credentials) ([]string, error) {
 			rows = append(rows, pickRow{h, "connected", "MCP entry in " + path, short})
 		default:
 			rows = append(rows, pickRow{
-				h, "ready", strings.TrimPrefix(planned(g.env, h, covered).detail, "would "),
+				h, "ready", strings.TrimPrefix(planned(g.env, h, g.profile.ServerName, covered).detail, "would "),
 				readyStatus(g.env, h),
 			})
 		}
