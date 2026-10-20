@@ -22,8 +22,8 @@ You need a Kemory account; sign up at [kemory.sekondbrain.ai](https://kemory.sek
 
    Your browser opens to sign in. kemory then lists the AI clients on this
    machine, `[ready]` or `[connected]`, and asks once: connect every ready
-   client, choose some, or cancel. Claude Code and Grok Build get the Kemory plugin; Codex, Cursor,
-   Gemini CLI, OpenCode and VS Code an MCP entry plus automatic memory; the
+   client, choose some, or cancel. Claude Code and Grok Build get the Kemory plugin; Codex, Copilot CLI,
+   Cursor, Gemini CLI, OpenCode and VS Code an MCP entry plus automatic memory; the
    others an MCP entry. Then the connection is checked. A summary lists what is left to do, such as which clients to
    restart.
 2. Restart the clients it lists. Warp picks the change up without a restart.
@@ -93,9 +93,9 @@ For Cursor they add the same hooks to `~/.cursor/hooks.json`, and for Gemini
 CLI to the `hooks` in `~/.gemini/settings.json`. Both run them without asking,
 and your other hooks are left as they are.
 
-For VS Code they write `~/.copilot/hooks/kemory.json`, which Copilot's agent
-mode runs (VS Code's `chat.useHooks` setting, on by default), and which the
-Copilot CLI reads too. kemory owns that file and rewrites it on every connect.
+For VS Code and the Copilot CLI they write `~/.copilot/hooks/kemory.json`,
+which both run (in VS Code through the `chat.useHooks` setting, on by
+default). kemory owns that file and rewrites it on every connect.
 
 For OpenCode they write a plugin, `~/.config/opencode/plugins/kemory.js`, that
 does the same: it adds your memory to the system prompt when a session starts
@@ -113,6 +113,7 @@ everything else in the file is left as it was.
 | `codex` | OpenAI Codex | `~/.codex/config.toml`, plus memory hooks in `~/.codex/hooks.json` (or under `$CODEX_HOME`) |
 | `cursor` | Cursor | `~/.cursor/mcp.json`, plus memory hooks in `~/.cursor/hooks.json` |
 | `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json`, plus memory hooks in `~/.copilot/hooks/kemory.json` |
+| `copilot-cli` | GitHub Copilot CLI | `~/.copilot/mcp-config.json` (or under `$COPILOT_HOME`), plus memory hooks in `~/.copilot/hooks/kemory.json` |
 | `gemini-cli` | Gemini CLI | `~/.gemini/settings.json`, with the memory hooks in the same file |
 | `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
 | `windsurf` | Windsurf / Devin Desktop | `~/.config/devin/mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` for older installs |

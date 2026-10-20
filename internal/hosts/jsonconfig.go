@@ -68,6 +68,14 @@ func writeJSONEntry(path string, h host, name string, launch Launch) error {
 			Command []string `json:"command"`
 			Enabled bool     `json:"enabled"`
 		}{"local", append([]string{launch.Command}, launch.Args...), true}
+	case h.allTools:
+		entry = struct {
+			Type    string            `json:"type"`
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+			Tools   []string          `json:"tools"`
+		}{"local", launch.Command, launch.Args, map[string]string{}, []string{"*"}}
 	}
 	if err := servers.SetValue(name, entry); err != nil {
 		return err

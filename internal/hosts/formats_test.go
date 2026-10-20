@@ -87,6 +87,33 @@ func TestVSCodeEntriesAreTypedUnderServers(t *testing.T) {
 	}
 }
 
+func TestCopilotCLIEntriesAreLocalWithEveryTool(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("copilot-cli")
+	if !strings.HasSuffix(path, filepath.Join(".copilot", "mcp-config.json")) {
+		t.Fatalf("path: %s", path)
+	}
+	if err := WriteEntry("copilot-cli", path, "kemory", LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	want := "{\n  \"mcpServers\": {\n    \"kemory\": {\n      \"type\": \"local\",\n      \"command\": \"kemory\",\n" +
+		"      \"args\": [\n        \"--env\",\n        \"prod\",\n        \"mcp\",\n        \"serve\"\n      ],\n" +
+		"      \"env\": {},\n      \"tools\": [\n        \"*\"\n      ]\n    }\n  }\n}\n"
+	if got := read(t, path); got != want {
+		t.Fatalf("got:\n%s", got)
+	}
+}
+
+func TestCopilotHooksAloneDoNotMeanTheCopilotCLIIsInstalled(t *testing.T) {
+	setHome(t)
+	if _, err := InstallCopilotHooks(LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	if Installed("copilot-cli") {
+		t.Fatal("kemory's own hooks file made the Copilot CLI look installed")
+	}
+}
+
 const codexConfig = `# Codex settings
 model = "gpt-5"
 notes = """

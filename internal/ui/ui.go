@@ -77,6 +77,7 @@ var names = map[string]string{
 	"codex":          "Codex",
 	"cursor":         "Cursor",
 	"vscode":         "VS Code",
+	"copilot-cli":    "Copilot CLI",
 	"gemini-cli":     "Gemini CLI",
 	"antigravity":    "Antigravity",
 	"windsurf":       "Windsurf",

@@ -32,6 +32,9 @@ type host struct {
 	typed bool
 	// local hosts (OpenCode) take {"type": "local", "command": [...]}.
 	local bool
+	// allTools hosts (the Copilot CLI) take "type": "local" and the tools
+	// the agent may call.
+	allTools bool
 	// discontinued hosts are no longer offered, only kept working where
 	// they are installed.
 	discontinued bool
@@ -74,6 +77,10 @@ var registry = []host{
 	{
 		name: "vscode", key: "servers", typed: true, macApps: []string{"Visual Studio Code.app"},
 		paths: func() []string { return []string{filepath.Join(vscodeUserDir(), "mcp.json")} },
+	},
+	{
+		name: "copilot-cli", key: "mcpServers", allTools: true,
+		paths: func() []string { return []string{filepath.Join(CopilotHome(), "mcp-config.json")} },
 	},
 	{name: "gemini-cli", key: "mcpServers", paths: inHome(".gemini", "settings.json")},
 	{name: "antigravity", key: "mcpServers", paths: inHome(".gemini", "config", "mcp_config.json"), macApps: []string{"Antigravity.app"}},
@@ -239,6 +246,7 @@ func Installed(name string) bool {
 	ours := map[string]bool{
 		filepath.Clean(CodexHooksPath()):     true,
 		filepath.Clean(CursorHooksPath()):    true,
+		filepath.Clean(CopilotHooksPath()):   true,
 		filepath.Clean(OpenCodePluginPath()): true,
 	}
 	for _, other := range registry {

@@ -38,6 +38,12 @@ var memoryHooks = map[string]memoryHook{
 		installed: hosts.CopilotHooksInstalled,
 		path:      hosts.CopilotHooksPath,
 	},
+	// VS Code and the Copilot CLI share one hooks file.
+	"copilot-cli": {
+		install:   hosts.InstallCopilotHooks,
+		installed: hosts.CopilotHooksInstalled,
+		path:      hosts.CopilotHooksPath,
+	},
 	"gemini-cli": {
 		install:   hosts.InstallGeminiHooks,
 		installed: hosts.GeminiHooksInstalled,
