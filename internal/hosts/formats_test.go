@@ -104,6 +104,36 @@ func TestCopilotCLIEntriesAreLocalWithEveryTool(t *testing.T) {
 	}
 }
 
+func TestJetBrainsEntries(t *testing.T) {
+	setHome(t)
+	for _, c := range []struct{ host, suffix, want string }{
+		{
+			host:   "copilot-jetbrains",
+			suffix: filepath.Join("github-copilot", "intellij", "mcp.json"),
+			want:   `"servers": {` + "\n" + `    "kemory": {` + "\n" + `      "type": "stdio",`,
+		},
+		{
+			host:   "junie",
+			suffix: filepath.Join(".junie", "mcp", "mcp.json"),
+			want:   `"mcpServers": {` + "\n" + `    "kemory": {` + "\n" + `      "command": "kemory",`,
+		},
+	} {
+		path := ResolveConfig(c.host)
+		if !strings.HasSuffix(path, c.suffix) {
+			t.Fatalf("%s path: %s", c.host, path)
+		}
+		if err := WriteEntry(c.host, path, "kemory", LaunchFor("prod")); err != nil {
+			t.Fatal(err)
+		}
+		if got := read(t, path); !strings.Contains(got, c.want) {
+			t.Fatalf("%s entry:\n%s", c.host, got)
+		}
+		if Installed(c.host) {
+			t.Fatalf("kemory's own entry made %s look installed", c.host)
+		}
+	}
+}
+
 func TestCopilotHooksAloneDoNotMeanTheCopilotCLIIsInstalled(t *testing.T) {
 	setHome(t)
 	if _, err := InstallCopilotHooks(LaunchFor("prod")); err != nil {

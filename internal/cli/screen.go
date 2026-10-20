@@ -153,7 +153,7 @@ func (s *screen) results(lines []hostResult) {
 		if r.next != "" && !contains(s.next, r.next) {
 			s.next = append(s.next, r.next)
 		}
-		if r.restart {
+		if r.restart && !contains(s.restart, ui.AppName(r.host)) {
 			s.restart = append(s.restart, ui.AppName(r.host))
 		}
 	}
@@ -228,7 +228,7 @@ func (s *screen) pickFancy(rows []pickRow, missing []string) ([]string, error) {
 	if len(missing) > 0 {
 		names := make([]string, len(missing))
 		for i, h := range missing {
-			names[i] = ui.AppName(h)
+			names[i] = ui.ShortName(h)
 		}
 		for i, l := range wrap("Not installed: "+strings.Join(names, ", "), max(20, s.width-5)) {
 			prefix := "○ "

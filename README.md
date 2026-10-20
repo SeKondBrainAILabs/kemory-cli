@@ -114,6 +114,8 @@ everything else in the file is left as it was.
 | `cursor` | Cursor | `~/.cursor/mcp.json`, plus memory hooks in `~/.cursor/hooks.json` |
 | `vscode` | VS Code (Copilot agent mode) | `~/Library/Application Support/Code/User/mcp.json`, `~/.config/Code/User/mcp.json`, plus memory hooks in `~/.copilot/hooks/kemory.json` |
 | `copilot-cli` | GitHub Copilot CLI | `~/.copilot/mcp-config.json` (or under `$COPILOT_HOME`), plus memory hooks in `~/.copilot/hooks/kemory.json` |
+| `copilot-jetbrains` | GitHub Copilot in JetBrains IDEs | `~/.config/github-copilot/intellij/mcp.json` (`%LOCALAPPDATA%\github-copilot\intellij\mcp.json` on Windows) |
+| `junie` | Junie, in JetBrains IDEs and the Junie CLI | `~/.junie/mcp/mcp.json` |
 | `gemini-cli` | Gemini CLI | `~/.gemini/settings.json`, with the memory hooks in the same file |
 | `antigravity` | Google Antigravity | `~/.gemini/config/mcp_config.json` |
 | `windsurf` | Windsurf / Devin Desktop | `~/.config/devin/mcp_config.json`, or `~/.codeium/windsurf/mcp_config.json` for older installs |

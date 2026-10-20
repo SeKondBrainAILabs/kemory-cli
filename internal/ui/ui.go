@@ -73,20 +73,22 @@ var names = map[string]string{
 	"claude-code": "Claude Code (Code tab, terminal)",
 	// The Claude app's Chat tab, claude.ai and Claude mobile share the
 	// claude.ai connector; the app's Code tab is Claude Code.
-	"claude-desktop": "Claude chat (app, web, mobile)",
-	"codex":          "Codex",
-	"cursor":         "Cursor",
-	"vscode":         "VS Code",
-	"copilot-cli":    "Copilot CLI",
-	"gemini-cli":     "Gemini CLI",
-	"antigravity":    "Antigravity",
-	"windsurf":       "Windsurf",
-	"cline":          "Cline",
-	"kiro":           "Kiro",
-	"grok":           "Grok",
-	"continue":       "Continue",
-	"warp":           "Warp",
-	"opencode":       "OpenCode",
+	"claude-desktop":    "Claude chat (app, web, mobile)",
+	"codex":             "Codex",
+	"cursor":            "Cursor",
+	"vscode":            "VS Code",
+	"copilot-cli":       "Copilot CLI",
+	"copilot-jetbrains": "Copilot (JetBrains)",
+	"junie":             "Junie (JetBrains)",
+	"gemini-cli":        "Gemini CLI",
+	"antigravity":       "Antigravity",
+	"windsurf":          "Windsurf",
+	"cline":             "Cline",
+	"kiro":              "Kiro",
+	"grok":              "Grok",
+	"continue":          "Continue",
+	"warp":              "Warp",
+	"opencode":          "OpenCode",
 }
 
 // nameWidth is the name column of client rows, wide enough for every name.
@@ -99,7 +101,10 @@ var nameWidth = func() int {
 }()
 
 // apps are the apps to restart where that differs from the client's name.
-var apps = map[string]string{"claude-code": "Claude Code", "claude-desktop": "Claude"}
+var apps = map[string]string{
+	"claude-code": "Claude Code", "claude-desktop": "Claude",
+	"copilot-jetbrains": "your JetBrains IDE", "junie": "your JetBrains IDE",
+}
 
 // nameCell is a host's name padded to the name column: the product in bold
 // (or plain), and where it is used, in brackets, dimmed.
@@ -114,6 +119,17 @@ func nameCell(host string, strong bool) string {
 		cell += dim.Render(" (" + where)
 	}
 	return cell + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(name)))
+}
+
+// shortNames are the names of hosts in a list, where the full name is long.
+var shortNames = map[string]string{"claude-code": "Claude Code", "claude-desktop": "Claude chat"}
+
+// ShortName is a host's name in a list of names.
+func ShortName(host string) string {
+	if n, ok := shortNames[host]; ok {
+		return n
+	}
+	return Name(host)
 }
 
 // AppName is the app a person restarts or opens for host.

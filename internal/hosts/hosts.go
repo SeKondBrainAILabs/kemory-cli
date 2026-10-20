@@ -79,6 +79,18 @@ var registry = []host{
 		paths: func() []string { return []string{filepath.Join(vscodeUserDir(), "mcp.json")} },
 	},
 	{
+		// GitHub Copilot's JetBrains plugin, in every JetBrains IDE.
+		name: "copilot-jetbrains", key: "servers", typed: true,
+		paths:   func() []string { return []string{filepath.Join(copilotJetBrainsDir(), "mcp.json")} },
+		appDirs: func() []string { return []string{copilotJetBrainsDir()} },
+	},
+	{
+		// Junie, JetBrains' agent, reads one user-level file in the IDEs and
+		// in its CLI.
+		name: "junie", key: "mcpServers",
+		paths: inHome(".junie", "mcp", "mcp.json"), appDirs: inHome(".junie"),
+	},
+	{
 		name: "copilot-cli", key: "mcpServers", allTools: true,
 		paths: func() []string { return []string{filepath.Join(CopilotHome(), "mcp-config.json")} },
 	},
@@ -199,6 +211,19 @@ func vscodeUserDir() string {
 		return filepath.Join(home(), "Library", "Application Support", "Code", "User")
 	}
 	return filepath.Join(userConfigDir(), "Code", "User")
+}
+
+// copilotJetBrainsDir is where GitHub Copilot's JetBrains plugin keeps its
+// settings: %LOCALAPPDATA% on Windows, ~/.config elsewhere, macOS included.
+func copilotJetBrainsDir() string {
+	if runtime.GOOS == "windows" {
+		local := os.Getenv("LOCALAPPDATA")
+		if local == "" {
+			local = filepath.Join(home(), "AppData", "Local")
+		}
+		return filepath.Join(local, "github-copilot", "intellij")
+	}
+	return filepath.Join(home(), ".config", "github-copilot", "intellij")
 }
 
 // clineExtensionDir is the Cline VS Code extension's storage directory.
