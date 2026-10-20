@@ -87,6 +87,7 @@ var names = map[string]string{
 	"kiro":              "Kiro",
 	"grok":              "Grok",
 	"continue":          "Continue",
+	"droid":             "Factory Droid",
 	"zed":               "Zed",
 	"warp":              "Warp",
 	"opencode":          "OpenCode",

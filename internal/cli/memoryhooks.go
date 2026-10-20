@@ -44,6 +44,11 @@ var memoryHooks = map[string]memoryHook{
 		installed: hosts.CopilotHooksInstalled,
 		path:      hosts.CopilotHooksPath,
 	},
+	"droid": {
+		install:   hosts.InstallDroidHooks,
+		installed: hosts.DroidHooksInstalled,
+		path:      hosts.DroidHooksPath,
+	},
 	"gemini-cli": {
 		install:   hosts.InstallGeminiHooks,
 		installed: hosts.GeminiHooksInstalled,

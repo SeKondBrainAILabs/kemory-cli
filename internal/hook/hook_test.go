@@ -243,3 +243,18 @@ func TestUserTurnsReadsGeminiCLI(t *testing.T) {
 		t.Fatalf("got %q %v", turns, err)
 	}
 }
+
+func TestUserTurnsReadsDroidTranscripts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "droid.jsonl")
+	body := `{"type":"session_start","id":"s1","title":"t"}
+{"type":"message","id":"m1","message":{"role":"user","content":[{"type":"text","text":"fix the login bug"}]}}
+{"type":"message","id":"m2","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	turns, err := UserTurns(path)
+	if err != nil || len(turns) != 1 || turns[0] != "fix the login bug" {
+		t.Fatalf("turns: %q %v", turns, err)
+	}
+}

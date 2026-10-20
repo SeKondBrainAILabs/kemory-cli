@@ -38,6 +38,28 @@ type groupedHooks struct {
 	timeoutScale int
 	// named handlers carry a name, which the agent shows in its hook list.
 	named bool
+	// topLevelFile is a hooks file keyed by event at its root, with no
+	// "hooks" object.
+	topLevelFile string
+}
+
+// read reads the agent's hooks file at path and the object holding its
+// events.
+func (g groupedHooks) read(path string) (*jsonedit.Object, *jsonedit.Object, error) {
+	if g.topLevelFile == "" || filepath.Base(path) != g.topLevelFile {
+		return readHooks(path)
+	}
+	cfg := jsonedit.NewObject()
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil:
+		if cfg, err = jsonedit.Parse(data); err != nil {
+			return nil, nil, invalid(path, "is not valid JSON")
+		}
+	case !errors.Is(err, fs.ErrNotExist):
+		return nil, nil, err
+	}
+	return cfg, cfg, nil
 }
 
 // Codex caps SessionEnd at 3 seconds.
@@ -203,7 +225,7 @@ func withoutKemory(raw json.RawMessage, agent string) ([]json.RawMessage, bool, 
 // added before, and leaves every other hook as it was.
 func (g groupedHooks) install(launch Launch) (string, error) {
 	path := g.path()
-	cfg, events, err := readHooks(path)
+	cfg, events, err := g.read(path)
 	if err != nil {
 		return path, err
 	}
@@ -228,15 +250,17 @@ func (g groupedHooks) install(launch Launch) (string, error) {
 			return path, err
 		}
 	}
-	if err := cfg.SetObject("hooks", events); err != nil {
-		return path, err
+	if events != cfg {
+		if err := cfg.SetObject("hooks", events); err != nil {
+			return path, err
+		}
 	}
 	return path, writeJSON(path, cfg)
 }
 
 // installed reports whether every kemory hook is in the agent's hooks file.
 func (g groupedHooks) installed() bool {
-	_, events, err := readHooks(g.path())
+	_, events, err := g.read(g.path())
 	if err != nil {
 		return false
 	}

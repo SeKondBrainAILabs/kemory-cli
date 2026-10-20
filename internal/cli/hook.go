@@ -24,7 +24,7 @@ import (
 // rather than hold the session up.
 
 // hookAgents are the agents whose payload and output shapes kemory knows.
-var hookAgents = []string{"claude-code", "codex", "copilot", "cursor", "gemini-cli", "grok", "opencode", "text"}
+var hookAgents = []string{"claude-code", "codex", "copilot", "cursor", "droid", "gemini-cli", "grok", "opencode", "text"}
 
 // hookDeadline is how long a hook may take, KEMORY_HOOK_TIMEOUT seconds or 2.
 func hookDeadline() time.Duration {

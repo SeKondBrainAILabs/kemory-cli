@@ -134,6 +134,11 @@ var registry = []host{
 		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
 	},
 	{
+		name: "droid", key: "mcpServers",
+		paths:   func() []string { return []string{filepath.Join(factoryDir(), "mcp.json")} },
+		appDirs: func() []string { return []string{factoryDir()} },
+	},
+	{
 		name: "zed", key: "context_servers", jsonc: true, macApps: []string{"Zed.app"},
 		paths: func() []string { return []string{filepath.Join(userConfigDir(), "zed", "settings.json")} },
 	},
@@ -275,10 +280,11 @@ func Installed(name string) bool {
 		}
 	}
 	ours := map[string]bool{
-		filepath.Clean(CodexHooksPath()):     true,
-		filepath.Clean(CursorHooksPath()):    true,
-		filepath.Clean(CopilotHooksPath()):   true,
-		filepath.Clean(OpenCodePluginPath()): true,
+		filepath.Clean(CodexHooksPath()):                          true,
+		filepath.Clean(CursorHooksPath()):                         true,
+		filepath.Clean(CopilotHooksPath()):                        true,
+		filepath.Clean(filepath.Join(factoryDir(), "hooks.json")): true,
+		filepath.Clean(OpenCodePluginPath()):                      true,
 	}
 	for _, other := range registry {
 		for _, p := range other.paths() {

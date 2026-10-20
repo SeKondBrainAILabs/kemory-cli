@@ -71,7 +71,8 @@ func (e Event) incremental() bool {
 // "content":[{"type":"input_text","text":…}]}}), Cursor's
 // ({"role":"user","message":{"content":…}}, the prompt inside <user_query>),
 // Gemini CLI's ({"id":…,"type":"user","content":…}, where hook context is
-// wrapped in <hook_context>) and the common {"role":"user","content":…} one. Harness-injected text
+// wrapped in <hook_context>), Droid's ({"type":"message","message":{"role":
+// "user","content":…}}) and the common {"role":"user","content":…} one. Harness-injected text
 // (starting with "<" or "Caveat:") is skipped: it is not the user's intent.
 func UserTurns(path string) ([]string, error) {
 	f, err := os.Open(path)
@@ -91,6 +92,13 @@ func UserTurns(path string) ([]string, error) {
 		}
 		var content any
 		switch {
+		case line["type"] == "message":
+			// Droid: {"type":"message","message":{"role":"user","content":…}}.
+			msg, _ := line["message"].(map[string]any)
+			if msg["role"] != "user" {
+				continue
+			}
+			content = msg["content"]
 		case line["type"] == "user.message":
 			// Copilot: {"type":"user.message","data":{"content":…}}.
 			data, _ := line["data"].(map[string]any)
