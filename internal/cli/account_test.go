@@ -3,8 +3,11 @@ package cli
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/releases"
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/exits"
 )
@@ -238,5 +241,29 @@ func TestUpgradeRunsTheInstallersOwnCommand(t *testing.T) {
 	runUpgrade = func([]string) error { return errors.New("exit status 1") }
 	if code, _, errOut := run(t, "upgrade", "--yes"); code == 0 || !strings.Contains(errOut, "npm install -g kemory@9.9.9") {
 		t.Fatalf("a failed upgrade must say what to run: %d %q", code, errOut)
+	}
+}
+
+func TestUpgradeOffersAnNPMInstallWhatNPMHas(t *testing.T) {
+	setHome(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/npm" {
+			_, _ = w.Write([]byte(`{"version": "9.9.8"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"tag_name": "cli-v9.9.9", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`))
+	}))
+	t.Cleanup(srv.Close)
+	old, oldNPM := releases.URL, releases.NPMURL
+	releases.URL, releases.NPMURL = srv.URL, srv.URL+"/npm"
+	t.Cleanup(func() { releases.URL, releases.NPMURL = old, oldNPM })
+	t.Setenv("KEMORY_LAUNCHER", "npm")
+	var ran []string
+	runUpgrade = func(argv []string) error { ran = argv; return nil }
+
+	// 9.9.9 is on GitHub, but its npm publish has not landed: npm can only
+	// install 9.9.8.
+	if code, out, _ := run(t, "upgrade", "--yes"); code != 0 || strings.Join(ran, " ") != "npm install -g kemory@9.9.8" {
+		t.Fatalf("got %d %v\n%s", code, ran, out)
 	}
 }
