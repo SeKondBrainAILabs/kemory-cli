@@ -1,0 +1,3 @@
+# Generated from and compared with each other; a CRLF checkout breaks both.
+internal/hosts/opencode.js text eol=lf
+packaging/opencode/index.js text eol=lf
