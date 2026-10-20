@@ -348,7 +348,7 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 			if d.hooksBesidePlugin(label, host, path, reason, dupes, launch) {
 				fixable = true
 			}
-		case reason != "" && len(dupes) > 0:
+		case reason != "" && (len(dupes) > 0 || leftoverHooks(host)):
 			wired++
 			if d.removeDuplicate(label, host, path, reason, dupes) {
 				fixable = true
@@ -429,16 +429,39 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 }
 
 // removeDuplicate handles a host that reaches Kemory another way and also has
-// a kemory entry, which gives it every tool twice. It reports whether
-// `doctor --fix` would remove the entry.
+// a kemory entry, which gives it every tool twice, or kemory hooks, which
+// capture each session twice. It reports whether `doctor --fix` would remove
+// them.
 func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []string) bool {
-	dup := fmt.Sprintf("duplicate: already %s, and %s also has a kemory entry", reason, path)
+	var found, files []string
+	if len(dupes) > 0 {
+		found = append(found, path+" also has a kemory entry")
+		files = append(files, path)
+	}
+	hooks := leftoverHooks(host)
+	if hooks {
+		found = append(found, memoryHooks[host].path()+" has kemory hooks")
+		files = append(files, memoryHooks[host].path())
+	}
+	dup := fmt.Sprintf("duplicate: already %s, and %s", reason, strings.Join(found, " and "))
 	if !d.fix {
-		d.emit(label, render.Skip, dup+". `kemory doctor --fix` removes it.")
+		it := "it"
+		if len(found) > 1 {
+			it = "them"
+		}
+		d.emit(label, render.Skip, dup+". `kemory doctor --fix` removes "+it+".")
 		return true
 	}
 	done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
-		return hosts.RemoveEntries(host, path, dupes)
+		if len(dupes) > 0 {
+			if err := hosts.RemoveEntries(host, path, dupes); err != nil {
+				return err
+			}
+		}
+		if hooks {
+			return memoryHooks[host].remove()
+		}
+		return nil
 	})
 	switch {
 	case err != nil:
@@ -446,7 +469,7 @@ func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []strin
 	case !done:
 		d.emit(label, render.Skip, dup+". "+note)
 	default:
-		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate entry from %s; %s", path, reason), orDefault(note, "restart "+host)))
+		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate from %s; %s", strings.Join(files, " and "), reason), orDefault(note, "restart "+host)))
 	}
 	return false
 }

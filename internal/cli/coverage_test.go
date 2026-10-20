@@ -141,3 +141,103 @@ func TestAnIdleConnectorDoesNotCount(t *testing.T) {
 		t.Fatal("a connector unused for 45 days must not stop the local entry")
 	}
 }
+
+func loadClaudeCodePlugin(t *testing.T, home string) {
+	t.Helper()
+	enablePlugin(t, home)
+	path := filepath.Join(home, ".claude", "plugins", "installed_plugins.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"version": 2, "plugins": {"kemory@kemory": [{"scope": "user"}]}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func installCursorPlugin(t *testing.T, home string) {
+	t.Helper()
+	path := filepath.Join(home, ".cursor", "plugins", "local", "kemory", ".cursor-plugin", "plugin.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"name": "kemory"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAKemoryPluginCoversCursor(t *testing.T) {
+	for name, install := range map[string]func(*testing.T, string){
+		"cursor plugin":      installCursorPlugin,
+		"claude code plugin": loadClaudeCodePlugin,
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := setHome(t)
+			install(t, home)
+			srv := fakeKemory(t)
+			saveCreds(t, srv.URL)
+
+			code, out, _ := run(t, "connect", "--host", "cursor")
+			if code != 0 || !strings.Contains(out, "already connected through") {
+				t.Fatalf("got %d %q", code, out)
+			}
+			for _, f := range []string{"mcp.json", "hooks.json"} {
+				if _, err := os.Stat(filepath.Join(home, ".cursor", f)); !os.IsNotExist(err) {
+					t.Fatalf("wrote %s next to the plugin", f)
+				}
+			}
+
+			// The plugins connect to prod; another env still gets its entry.
+			if code, _, _ := run(t, "--env", "india", "mcp", "install", "--host", "cursor"); code != 0 ||
+				mcpServers(t, filepath.Join(home, ".cursor", "mcp.json"))["kemory-india"] == nil {
+				t.Fatal("the india entry must still be written")
+			}
+		})
+	}
+}
+
+func TestDoctorRemovesWhatAnEarlierConnectLeftInCursor(t *testing.T) {
+	home := setHome(t)
+	fakeReleases(t, `[]`)
+	mcpJSON := filepath.Join(home, ".cursor", "mcp.json")
+	hooksJSON := filepath.Join(home, ".cursor", "hooks.json")
+	if err := os.MkdirAll(filepath.Dir(mcpJSON), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mcpJSON, []byte(`{"mcpServers": {"kemory": {"command": "kemory"}, "github": {}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := hosts.InstallCursorHooks(hosts.LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	loadClaudeCodePlugin(t, home)
+	srv := fakeKemory(t)
+	saveCreds(t, srv.URL)
+
+	if code, out, _ := run(t, "connect", "--host", "cursor"); code != 0 || !strings.Contains(out, "kemory doctor --fix") {
+		t.Fatalf("connect must point at the leftovers: %d %q", code, out)
+	}
+	localSignIn(t)
+	_, report := runDoctor(t)
+	if statusOf(report, "mcp host: cursor") != "skip" {
+		t.Fatalf("the duplicate must be reported: %+v", report)
+	}
+	_, report = runDoctor(t, "--fix")
+	if statusOf(report, "mcp host: cursor") != "pass" {
+		t.Fatalf("after --fix: %+v", report)
+	}
+	servers := mcpServers(t, mcpJSON)
+	if servers["kemory"] != nil || servers["github"] == nil {
+		t.Fatalf("only the duplicate must go: %v", servers)
+	}
+	if hosts.CursorHooksFound() {
+		t.Fatalf("kemory hooks left in %s", hooksJSON)
+	}
+
+	// Hooks alone, without an entry, are a duplicate too.
+	if _, err := hosts.InstallCursorHooks(hosts.LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	if _, report = runDoctor(t); statusOf(report, "mcp host: cursor") != "skip" {
+		t.Fatalf("leftover hooks must be reported: %+v", report)
+	}
+}
