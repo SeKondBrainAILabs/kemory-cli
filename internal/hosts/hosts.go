@@ -35,6 +35,8 @@ type host struct {
 	// allTools hosts (the Copilot CLI) take "type": "local" and the tools
 	// the agent may call.
 	allTools bool
+	// jsonc hosts (Zed) keep comments in their JSON, which kemory keeps.
+	jsonc bool
 	// discontinued hosts are no longer offered, only kept working where
 	// they are installed.
 	discontinued bool
@@ -130,6 +132,10 @@ var registry = []host{
 		// Continue was discontinued in 2026 after Cursor acquired it.
 		name: "continue", key: "mcpServers", discontinued: true,
 		paths: inHome(".continue", "mcpServers", "kemory.json"), appDirs: inHome(".continue"),
+	},
+	{
+		name: "zed", key: "context_servers", jsonc: true, macApps: []string{"Zed.app"},
+		paths: func() []string { return []string{filepath.Join(userConfigDir(), "zed", "settings.json")} },
 	},
 	{name: "warp", key: "mcpServers", paths: inHome(".warp", ".mcp.json"), macApps: []string{"Warp.app"}},
 	{
@@ -375,9 +381,14 @@ func KemoryEntries(name, path string) []string {
 	if !ok {
 		return nil
 	}
-	names := jsonServerNames(path, h.key)
-	if h.toml {
+	var names []string
+	switch {
+	case h.toml:
 		names = tomlServerNames(path)
+	case h.jsonc:
+		names = jsoncServerNames(path, h.key)
+	default:
+		names = jsonServerNames(path, h.key)
 	}
 	var kemory []string
 	for _, n := range names {
@@ -396,7 +407,8 @@ func EntryCommand(name, path, server string) string {
 		return ""
 	}
 	var command any
-	if h.toml {
+	switch {
+	case h.toml:
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return ""
@@ -408,7 +420,14 @@ func EntryCommand(name, path, server string) string {
 		servers, _ := doc[tomlServersKey].(map[string]any)
 		entry, _ := servers[server].(map[string]any)
 		command = entry["command"]
-	} else {
+	case h.jsonc:
+		_, doc, err := readJSONC(path)
+		if err != nil {
+			return ""
+		}
+		entry, _ := jsoncServers(doc, h.key)[server].(map[string]any)
+		command = entry["command"]
+	default:
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return ""
@@ -494,6 +513,13 @@ func WriteEntry(name, path, server string, launch Launch) error {
 	if h.toml {
 		return writeTOMLEntry(path, server, launch)
 	}
+	if h.jsonc {
+		return writeJSONCEntry(path, h.key, server, struct {
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+		}{launch.Command, launch.Args, map[string]string{}})
+	}
 	return writeJSONEntry(path, h, server, launch)
 }
 
@@ -507,9 +533,12 @@ func RemoveEntries(name, path string, servers []string) error {
 	}
 	var emptied string
 	var err error
-	if h.toml {
+	switch {
+	case h.toml:
 		emptied, err = removeTOMLEntries(path, servers)
-	} else {
+	case h.jsonc:
+		emptied, err = removeJSONCEntries(path, h.key, servers)
+	default:
 		emptied, err = removeJSONEntries(path, h.key, servers)
 	}
 	if err != nil || emptied == "" {

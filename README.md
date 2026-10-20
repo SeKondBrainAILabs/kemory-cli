@@ -123,6 +123,7 @@ everything else in the file is left as it was.
 | `kiro` | Kiro | `~/.kiro/settings/mcp.json` |
 | `grok` | Grok CLI | `~/.grok/config.toml` |
 | `continue` | Continue (discontinued in 2026; kept working where it is still installed) | `~/.continue/mcpServers/kemory.json` |
+| `zed` | Zed | `~/.config/zed/settings.json` (`%APPDATA%\Zed\settings.json` on Windows), under `context_servers`; your comments in the file are kept |
 | `warp` | Warp | `~/.warp/.mcp.json` |
 | `opencode` | OpenCode | `~/.config/opencode/opencode.json`, plus the memory plugin in `~/.config/opencode/plugins/kemory.js` |
 
