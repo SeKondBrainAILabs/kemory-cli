@@ -66,7 +66,8 @@ func TestConnectListsClientsAndConnectsTheReadyOnesOnEnter(t *testing.T) {
 
 func TestConnectOffersToFixAnEntryWhoseCommandIsGone(t *testing.T) {
 	home := pickerMachine(t, "\n")
-	gone := filepath.Join(home, "old", "kemory")
+	// Forward slashes keep a Windows path valid inside the JSON below.
+	gone := filepath.ToSlash(filepath.Join(home, "old", "kemory"))
 	writeFile(t, filepath.Join(home, ".warp", ".mcp.json"), `{"mcpServers": {"kemory": {"command": "`+gone+`"}}}`)
 	code, out, errOut := run(t, "connect")
 	if code != 0 {
