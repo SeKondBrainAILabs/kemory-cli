@@ -4,6 +4,7 @@
 [![npm](https://img.shields.io/npm/v/kemory.svg)](https://www.npmjs.com/package/kemory)
 [![PyPI](https://img.shields.io/pypi/v/kemory.svg)](https://pypi.org/project/kemory/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![M8ven Score](https://m8ven.ai/badge/mcp/sekondbrainailabs-kemory-cli-3yiub3?v=aebb767d439c8deb749ff861bd9812cd)](https://m8ven.ai/mcp/sekondbrainailabs-kemory-cli-3yiub3?s=readme)
 
 The command-line client for [Kemory](https://kemory.sekondbrain.ai), a persistent
 memory vault for AI agents. It signs you in, connects MCP clients such as Claude
