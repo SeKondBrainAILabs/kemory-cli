@@ -31,7 +31,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uvx zizmor@1.29.0 --format plain .github/workflows/
 
   test:
@@ -100,7 +100,7 @@ jobs:
           # Release builds never restore a cache another workflow could have
           # written (zizmor cache-poisoning).
           cache: false
-      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: v2.18.2
