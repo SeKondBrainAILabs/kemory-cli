@@ -112,12 +112,13 @@ func connectCopilotCloud(g *globals, dir, repo string) error {
 
 	host := config.EnvProfile(g.env).KemoryURL
 	mcp, _ := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{
-		config.EnvProfile(g.env).ServerName: map[string]any{
-			"type":    "http",
-			"url":     strings.TrimRight(host, "/") + "/mcp/v1",
-			"headers": map[string]string{"X-API-Key": "$" + cloudMCPSecret},
-			"tools":   []string{"*"},
-		},
+		// A struct, so the entry reads type, url, headers, tools.
+		config.EnvProfile(g.env).ServerName: struct {
+			Type    string            `json:"type"`
+			URL     string            `json:"url"`
+			Headers map[string]string `json:"headers"`
+			Tools   []string          `json:"tools"`
+		}{"http", strings.TrimRight(host, "/") + "/mcp/v1", map[string]string{"X-API-Key": "$" + cloudMCPSecret}, []string{"*"}},
 	}}, "", "  ")
 	render.Echo("")
 	render.Echo("Two steps in " + repo + "'s Settings → Copilot:")
