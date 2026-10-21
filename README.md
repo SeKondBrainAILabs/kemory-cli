@@ -257,6 +257,9 @@ analytics; `kemory telemetry off` turns that off for your account.
 `kemory doctor` and `kemory upgrade` also read the public release list on
 GitHub to compare versions.
 
+How SeKondBrain handles your account and vault data is set out in the
+[Privacy Policy](https://docs.sekondbrain.ai/legal/privacy/).
+
 ## Uninstall
 
 1. Remove the kemory entries from your MCP clients' config files (the
