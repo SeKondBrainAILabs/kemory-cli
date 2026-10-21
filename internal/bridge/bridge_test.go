@@ -20,7 +20,7 @@ func setup(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
-	for _, k := range []string{"KEMORY_URL", "KEMORY_API_KEY", "S9NMV_API_KEY", "KORA_API_KEY", "KEMORY_HTTP_TIMEOUT"} {
+	for _, k := range []string{"KEMORY_URL", "KEMORY_API_KEY", "KEMORY_HTTP_TIMEOUT"} {
 		t.Setenv(k, "")
 	}
 	old := Logf

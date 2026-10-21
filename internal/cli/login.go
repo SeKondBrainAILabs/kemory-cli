@@ -40,7 +40,7 @@ func newLoginCmd(g *globals) *cobra.Command {
 }
 
 func loginLocal(g *globals) error {
-	key := firstNonEmpty(os.Getenv("KEMORY_API_KEY"), os.Getenv("S9NMV_API_KEY"), os.Getenv("KORA_API_KEY"))
+	key := os.Getenv("KEMORY_API_KEY")
 	if key == "" {
 		return exits.New("--local mode needs an API key. Set KEMORY_API_KEY=<key> in the environment, "+
 			"then re-run `kemory login --local`.", exits.Failure)

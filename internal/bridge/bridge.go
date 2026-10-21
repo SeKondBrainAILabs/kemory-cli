@@ -73,7 +73,6 @@ type Bridge struct {
 	handshakeDone     bool
 	handshakeAttempts int
 	discoveryDone     bool
-	legacyKeyWarned   bool
 }
 
 type message struct {
@@ -301,7 +300,7 @@ func (b *Bridge) userAgent() string {
 	return b.hostName + "/" + b.hostVersion
 }
 
-// headers picks the auth: KEMORY_API_KEY (or a legacy alias) as X-API-Key,
+// headers picks the auth: KEMORY_API_KEY as X-API-Key,
 // else the cached OAuth token as a bearer plus the selected org.
 func (b *Bridge) headers() http.Header {
 	h := http.Header{}
@@ -310,18 +309,7 @@ func (b *Bridge) headers() http.Header {
 	h.Set("User-Agent", b.userAgent())
 	h.Set("X-Kemory-Client", api.ClientHeader("mcp-bridge"))
 
-	key := os.Getenv("KEMORY_API_KEY")
-	if key == "" {
-		if key = firstNonEmpty(os.Getenv("S9NMV_API_KEY"), os.Getenv("KORA_API_KEY")); key != "" {
-			b.stateMu.Lock()
-			if !b.legacyKeyWarned {
-				b.legacyKeyWarned = true
-				Logf("using a deprecated API key variable (S9NMV_API_KEY / KORA_API_KEY); switch to KEMORY_API_KEY")
-			}
-			b.stateMu.Unlock()
-		}
-	}
-	if key != "" {
+	if key := os.Getenv("KEMORY_API_KEY"); key != "" {
 		h.Set("X-API-Key", key)
 		return h
 	}
@@ -501,13 +489,4 @@ func refusalOf(err error) *residency.Refusal {
 		return residency.ParseRefusal(up.Status, up.Body)
 	}
 	return nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }
