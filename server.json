@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.SeKondBrainAILabs/kemory",
+  "title": "Kemory",
+  "description": "Persistent memory for AI agents: connects MCP clients to your Kemory memory vault",
+  "websiteUrl": "https://kemory.sekondbrain.ai",
+  "repository": {
+    "url": "https://github.com/SeKondBrainAILabs/kemory-cli",
+    "source": "github"
+  },
+  "version": "0.0.0-dev",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "kemory",
+      "version": "0.0.0-dev",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        },
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "KEMORY_API_KEY",
+          "description": "Kemory API key; when unset, mcp serve uses the sign-in from `kemory login`",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

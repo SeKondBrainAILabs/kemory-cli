@@ -1,6 +1,7 @@
 {
   "name": "kemory",
   "version": "0.0.0-dev",
+  "mcpName": "io.github.SeKondBrainAILabs/kemory",
   "description": "Kemory CLI: connect Claude Code, Cursor and other MCP clients to your Kemory memory vault",
   "homepage": "https://kemory.sekondbrain.ai",
   "repository": {
