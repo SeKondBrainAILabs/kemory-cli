@@ -278,7 +278,7 @@ func LoginWith(issuer, clientID, kemoryURL, env string, openBrowser bool, ui Log
 
 func expiry(expiresIn int) float64 {
 	if expiresIn == 0 {
-		expiresIn = 300
+		expiresIn = 0
 	}
 	return float64(time.Now().Add(time.Duration(expiresIn)*time.Second).UnixMicro()) / 1e6
 }
