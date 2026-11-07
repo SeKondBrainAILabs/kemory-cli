@@ -51,7 +51,7 @@ func TestRefreshRejectedAfterAnotherProcessRefreshedUsesTheSavedSession(t *testi
 
 func rejectingIssuer(t *testing.T, onReject func()) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if onReject != nil {
 			onReject()
 		}
