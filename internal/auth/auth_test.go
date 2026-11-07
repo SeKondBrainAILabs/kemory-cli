@@ -221,3 +221,26 @@ func TestValidCredentials(t *testing.T) {
 		}
 	})
 }
+
+func TestRefreshWithoutExpiresInSavesAboutFiveMinutes(t *testing.T) {
+	setHome(t)
+	srv := httptest.NewServer(&fakeIssuer{replies: [][2]string{{"200", `{"access_token": "new"}`}}})
+	defer srv.Close()
+	c := saveCreds(t, srv.URL, 10*time.Second)
+
+	before := time.Now()
+	if err := Refresh(c); err != nil {
+		t.Fatal(err)
+	}
+	after := time.Now()
+
+	saved, err := config.LoadCredentials("prod")
+	if err != nil || saved == nil {
+		t.Fatalf("got %v %v", saved, err)
+	}
+	lo := float64(before.Add(300*time.Second).UnixMicro())/1e6 - 1
+	hi := float64(after.Add(300*time.Second).UnixMicro())/1e6 + 1
+	if saved.ExpiresAt < lo || saved.ExpiresAt > hi {
+		t.Fatalf("ExpiresAt = %v, want within [%v, %v] (now+300s)", saved.ExpiresAt, lo, hi)
+	}
+}
