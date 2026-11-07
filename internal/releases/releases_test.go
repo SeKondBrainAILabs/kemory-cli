@@ -60,20 +60,23 @@ func TestLatestFallsBackToNPMWhenGitHubRefuses(t *testing.T) {
 
 func TestIsNewer(t *testing.T) {
 	cases := []struct {
+		name            string
 		latest, current string
 		newer, ok       bool
 	}{
-		{"0.6.14", "0.6.9", true, true},
-		{"0.6.9", "0.6.14", false, true},
-		{"1.0", "1.0.0", false, true},
-		{"0.7.0", "dev", false, false},
-		{"0.6.14", "0.7.0-dev", false, true},
-		{"0.7.0", "0.7.0+abc123", false, true},
-		{"0.7.0", "0.0.0-SNAPSHOT-abc", true, true},
+		{"patch numeric", "0.6.14", "0.6.9", true, true},
+		{"older latest", "0.6.9", "0.6.14", false, true},
+		{"missing patch", "1.0", "1.0.0", false, true},
+		{"dev build", "0.7.0", "dev", false, false},
+		{"prerelease", "0.6.14", "0.7.0-dev", false, true},
+		{"build metadata", "0.7.0", "0.7.0+abc123", false, true},
+		{"snapshot", "0.7.0", "0.0.0-SNAPSHOT-abc", true, true},
 	}
 	for _, c := range cases {
-		if newer, ok := IsNewer(c.latest, c.current); newer != c.newer || ok != c.ok {
-			t.Fatalf("IsNewer(%s, %s) = %v, %v", c.latest, c.current, newer, ok)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if newer, ok := IsNewer(c.latest, c.current); newer != c.newer || ok != c.ok {
+				t.Fatalf("IsNewer(%s, %s) = %v, %v", c.latest, c.current, newer, ok)
+			}
+		})
 	}
 }

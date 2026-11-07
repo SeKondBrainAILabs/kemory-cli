@@ -19,9 +19,11 @@ func TestTheGuidedScreenOnlyRunsInAColourTerminal(t *testing.T) {
 		t.Fatal("an interactive colour terminal gets the guided screen")
 	}
 	for name, g := range map[string]*globals{"--quiet": {quiet: true}, "--no-color": {noColor: true}} {
-		if newScreen(g) != nil {
-			t.Fatalf("%s must get plain output", name)
-		}
+		t.Run(name, func(t *testing.T) {
+			if newScreen(g) != nil {
+				t.Fatalf("%s must get plain output", name)
+			}
+		})
 	}
 	t.Setenv("NO_COLOR", "1")
 	if newScreen(&globals{}) != nil {
@@ -45,13 +47,20 @@ func TestTheGuidedScreenOnlyRunsInAColourTerminal(t *testing.T) {
 }
 
 func TestListJoin(t *testing.T) {
-	for in, want := range map[string]string{"": "", "A": "A", "A,B": "A and B", "A,B,C": "A, B and C"} {
-		var names []string
-		if in != "" {
-			names = strings.Split(in, ",")
-		}
-		if got := listJoin(names); got != want {
-			t.Fatalf("listJoin(%q) = %q, want %q", in, got, want)
-		}
+	for _, c := range []struct{ name, in, want string }{
+		{"none", "", ""},
+		{"one", "A", "A"},
+		{"two", "A,B", "A and B"},
+		{"three", "A,B,C", "A, B and C"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var names []string
+			if c.in != "" {
+				names = strings.Split(c.in, ",")
+			}
+			if got := listJoin(names); got != c.want {
+				t.Fatalf("listJoin(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
 	}
 }

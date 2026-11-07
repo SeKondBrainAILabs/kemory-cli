@@ -23,9 +23,11 @@ func TestHeaderHasTheMarkNameTaglineAndMaker(t *testing.T) {
 
 func TestEveryHostHasAName(t *testing.T) {
 	for host, name := range names {
-		if Name(host) != name {
-			t.Fatalf("%s: %q", host, Name(host))
-		}
+		t.Run(host, func(t *testing.T) {
+			if Name(host) != name {
+				t.Fatalf("%s: %q", host, Name(host))
+			}
+		})
 	}
 	if Name("unknown") != "unknown" {
 		t.Fatal("an unknown host keeps its id")

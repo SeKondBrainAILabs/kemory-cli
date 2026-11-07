@@ -118,19 +118,21 @@ func TestJetBrainsEntries(t *testing.T) {
 			want:   `"mcpServers": {` + "\n" + `    "kemory": {` + "\n" + `      "command": "kemory",`,
 		},
 	} {
-		path := ResolveConfig(c.host)
-		if !strings.HasSuffix(path, c.suffix) {
-			t.Fatalf("%s path: %s", c.host, path)
-		}
-		if err := WriteEntry(c.host, path, "kemory", LaunchFor("prod")); err != nil {
-			t.Fatal(err)
-		}
-		if got := read(t, path); !strings.Contains(got, c.want) {
-			t.Fatalf("%s entry:\n%s", c.host, got)
-		}
-		if Installed(c.host) {
-			t.Fatalf("kemory's own entry made %s look installed", c.host)
-		}
+		t.Run(c.host, func(t *testing.T) {
+			path := ResolveConfig(c.host)
+			if !strings.HasSuffix(path, c.suffix) {
+				t.Fatalf("%s path: %s", c.host, path)
+			}
+			if err := WriteEntry(c.host, path, "kemory", LaunchFor("prod")); err != nil {
+				t.Fatal(err)
+			}
+			if got := read(t, path); !strings.Contains(got, c.want) {
+				t.Fatalf("%s entry:\n%s", c.host, got)
+			}
+			if Installed(c.host) {
+				t.Fatalf("kemory's own entry made %s look installed", c.host)
+			}
+		})
 	}
 }
 

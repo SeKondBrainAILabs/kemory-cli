@@ -117,9 +117,11 @@ func TestMCPInstallConfigUsesTheHostsFormat(t *testing.T) {
 		t.Fatalf("got %q %v", data, err)
 	}
 	for _, hostArg := range []string{"codex,cursor", "all"} {
-		if code, _, _ := run(t, "mcp", "install", "--host", hostArg, "--config", path); code != exits.Usage {
-			t.Fatalf("--host %s with --config: got %d", hostArg, code)
-		}
+		t.Run(hostArg, func(t *testing.T) {
+			if code, _, _ := run(t, "mcp", "install", "--host", hostArg, "--config", path); code != exits.Usage {
+				t.Fatalf("--host %s with --config: got %d", hostArg, code)
+			}
+		})
 	}
 }
 
@@ -201,13 +203,15 @@ func TestUseFailuresLeaveTheSelectionAlone(t *testing.T) {
 		"no target": {"use"},
 	}
 	for name, args := range cases {
-		code, _, errOut := run(t, args...)
-		if code == 0 {
-			t.Fatalf("%s: succeeded: %q", name, errOut)
-		}
-		if c, _ := config.LoadCredentials("prod"); c.ActiveOrgID != orgAcme {
-			t.Fatalf("%s: selection changed to %q", name, c.ActiveOrgID)
-		}
+		t.Run(name, func(t *testing.T) {
+			code, _, errOut := run(t, args...)
+			if code == 0 {
+				t.Fatalf("%s: succeeded: %q", name, errOut)
+			}
+			if c, _ := config.LoadCredentials("prod"); c.ActiveOrgID != orgAcme {
+				t.Fatalf("%s: selection changed to %q", name, c.ActiveOrgID)
+			}
+		})
 	}
 }
 
@@ -327,16 +331,22 @@ func TestDoctorTextOutput(t *testing.T) {
 
 func TestDoctorShowsExpiryAsATime(t *testing.T) {
 	now := time.Date(2026, 10, 14, 18, 25, 0, 0, time.UTC)
-	for epoch, want := range map[float64]string{
-		float64(now.Add(59 * time.Minute).Unix()): "expires 19:24 (in 59m)",
-		float64(now.Add(65 * time.Minute).Unix()): "expires 19:30 (in 1h5m)",
-		float64(now.Add(30 * time.Second).Unix()): "expires 18:25 (in 30s)",
-		float64(now.Add(-3 * time.Minute).Unix()): "expired 18:22 (3m ago)",
-		float64(now.Add(50 * time.Hour).Unix()):   "expires 2026-10-16 20:25 (in 2d2h)",
+	for _, c := range []struct {
+		name  string
+		epoch float64
+		want  string
+	}{
+		{"59m ahead", float64(now.Add(59 * time.Minute).Unix()), "expires 19:24 (in 59m)"},
+		{"65m ahead", float64(now.Add(65 * time.Minute).Unix()), "expires 19:30 (in 1h5m)"},
+		{"30s ahead", float64(now.Add(30 * time.Second).Unix()), "expires 18:25 (in 30s)"},
+		{"3m ago", float64(now.Add(-3 * time.Minute).Unix()), "expired 18:22 (3m ago)"},
+		{"50h ahead", float64(now.Add(50 * time.Hour).Unix()), "expires 2026-10-16 20:25 (in 2d2h)"},
 	} {
-		if got := expiry(epoch, now); got != want {
-			t.Errorf("expiry: got %q, want %q", got, want)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if got := expiry(c.epoch, now); got != c.want {
+				t.Errorf("expiry: got %q, want %q", got, c.want)
+			}
+		})
 	}
 }
 
