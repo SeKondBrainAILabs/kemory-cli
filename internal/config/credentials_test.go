@@ -92,6 +92,30 @@ func TestUnusableFilesReadAsSignedOut(t *testing.T) {
 	}
 }
 
+// The list is spelled out rather than read from requiredFields so that
+// dropping a field from requiredFields fails here. The Python CLI and the
+// plugin hooks reject a file missing any of these.
+func TestFileMissingAnyRequiredFieldReadsAsSignedOut(t *testing.T) {
+	for _, field := range []string{"access_token", "refresh_token", "expires_at", "issuer", "client_id", "kemory_url"} {
+		t.Run(field, func(t *testing.T) {
+			var fields map[string]any
+			if err := json.Unmarshal([]byte(pythonWritten), &fields); err != nil {
+				t.Fatal(err)
+			}
+			delete(fields, field)
+			body, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			setHome(t)
+			write(t, string(body))
+			if c, err := LoadCredentials("prod"); c != nil || err != nil {
+				t.Fatalf("want nil, nil; got %+v, %v", c, err)
+			}
+		})
+	}
+}
+
 func TestRetiredHostsAreRetargetedInMemoryOnly(t *testing.T) {
 	setHome(t)
 	body := strings.NewReplacer(
