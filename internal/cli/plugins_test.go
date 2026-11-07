@@ -150,3 +150,14 @@ func TestWarningsOnStderrDoNotBreakTheMarketplaceList(t *testing.T) {
 		t.Fatalf("got %q %v", name, err)
 	}
 }
+
+func TestPluginInstalledNamesTheApp(t *testing.T) {
+	for host, want := range map[string]string{
+		"claude-code": "Restart Claude Code to load it",
+		"grok":        "Restart Grok to load it",
+	} {
+		if got := pluginInstalled(host); !strings.HasSuffix(got, ". "+want) {
+			t.Errorf("pluginInstalled(%q) = %q, want it to end with %q", host, got, want)
+		}
+	}
+}

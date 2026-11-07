@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/config"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/ui"
 )
 
 // Claude Code and Grok Build have a Kemory plugin. Its hooks recall memory
@@ -134,7 +135,7 @@ func pluginInstalled(host string) string {
 		// put recalled memory into the conversation there.
 		gets = "sessions are saved automatically and Kemory's tools are available"
 	}
-	return "installed the Kemory plugin: " + gets + ". Restart " + host + " to load it"
+	return "installed the Kemory plugin: " + gets + ". Restart " + ui.AppName(host) + " to load it"
 }
 
 func installGrokPlugin() error {
