@@ -184,6 +184,7 @@ func TestValidCredentials(t *testing.T) {
 		}
 	})
 	t.Run("rejected refresh means log in again", func(t *testing.T) {
+		noSleep(t)
 		setHome(t)
 		srv := httptest.NewServer(&fakeIssuer{replies: [][2]string{{"400", `{"error": "invalid_grant"}`}}})
 		defer srv.Close()
