@@ -107,14 +107,23 @@ func TestDryRunShowsThePlanAndChangesNothing(t *testing.T) {
 }
 
 func TestScriptsGetNoPrompt(t *testing.T) {
-	for _, args := range [][]string{{"connect", "--host", "cursor"}, {"--output", "json", "connect"}} {
-		home := pickerMachine(t, "none\n")
-		code, out, errOut := run(t, args...)
-		if code != 0 || strings.Contains(out+errOut, "Connect which?") {
-			t.Fatalf("%v prompted: %d\n%s\n%s", args, code, out, errOut)
-		}
-		if args[0] == "connect" && mcpServers(t, filepath.Join(home, ".cursor", "mcp.json"))["kemory"] == nil {
-			t.Fatalf("%v: --host must connect without asking", args)
-		}
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{"host flag", []string{"connect", "--host", "cursor"}},
+		{"json output", []string{"--output", "json", "connect"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			args := c.args
+			home := pickerMachine(t, "none\n")
+			code, out, errOut := run(t, args...)
+			if code != 0 || strings.Contains(out+errOut, "Connect which?") {
+				t.Fatalf("%v prompted: %d\n%s\n%s", args, code, out, errOut)
+			}
+			if args[0] == "connect" && mcpServers(t, filepath.Join(home, ".cursor", "mcp.json"))["kemory"] == nil {
+				t.Fatalf("%v: --host must connect without asking", args)
+			}
+		})
 	}
 }

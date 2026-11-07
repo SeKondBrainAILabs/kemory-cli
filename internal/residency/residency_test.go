@@ -19,10 +19,16 @@ func TestOnlyTheExactRefusalCounts(t *testing.T) {
 	if ParseRefusal(401, refusalBody("", "")) != nil {
 		t.Fatal("non-403 parsed as refusal")
 	}
-	for _, body := range []string{`{"detail": "Forbidden"}`, `{"detail": {"code": "OTHER"}}`, `not json`} {
-		if ParseRefusal(403, []byte(body)) != nil {
-			t.Fatalf("plain 403 parsed as refusal: %s", body)
-		}
+	for _, c := range []struct{ name, body string }{
+		{"plain detail", `{"detail": "Forbidden"}`},
+		{"other code", `{"detail": {"code": "OTHER"}}`},
+		{"not json", `not json`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if ParseRefusal(403, []byte(c.body)) != nil {
+				t.Fatalf("plain 403 parsed as refusal: %s", c.body)
+			}
+		})
 	}
 	r := ParseRefusal(403, refusalBody("", ""))
 	if r == nil || r.ThisCell != "zurich" || r.TargetAPI != "" {
@@ -38,19 +44,21 @@ func TestAllowlistedTargetIsKeptAndNormalized(t *testing.T) {
 }
 
 func TestUnsafeTargetsAreDropped(t *testing.T) {
-	for _, api := range []string{
-		"http://api.kemory.in.sekondbrain.ai",
-		"https://api.kemory.in.sekondbrain.ai:8443",
-		"https://user@api.kemory.in.sekondbrain.ai",
-		"https://api.kemory.in.sekondbrain.ai/path",
-		"https://api.kemory.in.sekondbrain.ai/?q=1",
-		"https://evil.example.com",
-		"https://api.kemory.in.sekondbrain.ai.evil.com",
-		"https://api.kemory.in.sekondbrain.ai:99999",
+	for _, c := range []struct{ name, api string }{
+		{"http", "http://api.kemory.in.sekondbrain.ai"},
+		{"port", "https://api.kemory.in.sekondbrain.ai:8443"},
+		{"userinfo", "https://user@api.kemory.in.sekondbrain.ai"},
+		{"path", "https://api.kemory.in.sekondbrain.ai/path"},
+		{"query", "https://api.kemory.in.sekondbrain.ai/?q=1"},
+		{"foreign host", "https://evil.example.com"},
+		{"suffix host", "https://api.kemory.in.sekondbrain.ai.evil.com"},
+		{"invalid port", "https://api.kemory.in.sekondbrain.ai:99999"},
 	} {
-		if r := ParseRefusal(403, refusalBody(api, "https://evil.example.com")); r.TargetAPI != "" || r.TargetDashboard != "" {
-			t.Fatalf("unsafe target kept for %s: %+v", api, r)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if r := ParseRefusal(403, refusalBody(c.api, "https://evil.example.com")); r.TargetAPI != "" || r.TargetDashboard != "" {
+				t.Fatalf("unsafe target kept for %s: %+v", c.api, r)
+			}
+		})
 	}
 }
 

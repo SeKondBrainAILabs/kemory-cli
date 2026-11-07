@@ -47,19 +47,32 @@ func TestEditingOneKeyPreservesTheRest(t *testing.T) {
 }
 
 func TestEmptyInputIsAnEmptyObject(t *testing.T) {
-	for _, in := range []string{"", "  \n", "{}"} {
-		o, err := Parse([]byte(in))
-		if err != nil || o.Len() != 0 {
-			t.Fatalf("%q: %v %v", in, o, err)
-		}
+	for _, c := range []struct{ name, in string }{
+		{"empty", ""},
+		{"whitespace", "  \n"},
+		{"braces", "{}"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			o, err := Parse([]byte(c.in))
+			if err != nil || o.Len() != 0 {
+				t.Fatalf("%q: %v %v", c.in, o, err)
+			}
+		})
 	}
 }
 
 func TestInvalidDocumentsAreRejected(t *testing.T) {
-	for _, in := range []string{"[1]", "{ not json ]", `{"a": 1} {"b": 2}`, `"text"`} {
-		if _, err := Parse([]byte(in)); err == nil {
-			t.Fatalf("%q was accepted", in)
-		}
+	for _, c := range []struct{ name, in string }{
+		{"array", "[1]"},
+		{"malformed", "{ not json ]"},
+		{"two documents", `{"a": 1} {"b": 2}`},
+		{"string", `"text"`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := Parse([]byte(c.in)); err == nil {
+				t.Fatalf("%q was accepted", c.in)
+			}
+		})
 	}
 }
 

@@ -160,15 +160,20 @@ func TestRecallTableAndHonestCounts(t *testing.T) {
 func TestRecallValidatesFlags(t *testing.T) {
 	setHome(t)
 	newFakeVault(t, nil)
-	for _, args := range [][]string{
-		{"recall", "x", "--mode", "fuzzy"},
-		{"recall", "x", "--limit", "500"},
-		{"recall", "x", "--min-relevance", "2"},
-		{"recall"},
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{"unknown mode", []string{"recall", "x", "--mode", "fuzzy"}},
+		{"limit too large", []string{"recall", "x", "--limit", "500"}},
+		{"min relevance too large", []string{"recall", "x", "--min-relevance", "2"}},
+		{"no query", []string{"recall"}},
 	} {
-		if code, _, _ := run(t, args...); code != exits.Usage {
-			t.Fatalf("%v: got %d", args, code)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if code, _, _ := run(t, c.args...); code != exits.Usage {
+				t.Fatalf("%v: got %d", c.args, code)
+			}
+		})
 	}
 }
 

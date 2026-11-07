@@ -9,20 +9,22 @@ import (
 )
 
 func TestRedactKeepsProseAndRemovesCredentials(t *testing.T) {
-	cases := map[string]string{
-		"we need a token for this":                    "we need a token for this",
-		"set api_key=abcdef123456 here":               "set [REDACTED] here",
-		"Bearer abcdefghijkl":                         "[REDACTED]",
-		"key sk-abcdefghijklmnopqrstu":                "key [REDACTED]",
-		"ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ":              "[REDACTED]",
-		"AKIAABCDEFGHIJKLMNOP":                        "[REDACTED]",
-		"password: hunter2hunter2":                    "[REDACTED]",
-		"eyJabcdefghijk.eyJabcdefghijk.sigabcdefghij": "[REDACTED]",
+	cases := []struct{ name, in, want string }{
+		{"prose", "we need a token for this", "we need a token for this"},
+		{"api key assignment", "set api_key=abcdef123456 here", "set [REDACTED] here"},
+		{"bearer", "Bearer abcdefghijkl", "[REDACTED]"},
+		{"sk key", "key sk-abcdefghijklmnopqrstu", "key [REDACTED]"},
+		{"github token", "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ", "[REDACTED]"},
+		{"aws key", "AKIAABCDEFGHIJKLMNOP", "[REDACTED]"},
+		{"password", "password: hunter2hunter2", "[REDACTED]"},
+		{"jwt", "eyJabcdefghijk.eyJabcdefghijk.sigabcdefghij", "[REDACTED]"},
 	}
-	for in, want := range cases {
-		if got := Redact(in); got != want {
-			t.Errorf("Redact(%q) = %q, want %q", in, got, want)
-		}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := Redact(c.in); got != c.want {
+				t.Errorf("Redact(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
 	}
 }
 
@@ -60,10 +62,16 @@ func TestBuildContext(t *testing.T) {
 		t.Fatalf("budget (floored at 500) not applied:\n%s", got)
 	}
 
-	for _, broken := range []string{`{"detail": "unauthorised"}`, `not json`, `{"namespaces": []}`} {
-		if got := BuildContext([]byte(broken), false); got != Instruction {
-			t.Fatalf("%s: want the instruction alone, got:\n%s", broken, got)
-		}
+	for _, c := range []struct{ name, body string }{
+		{"detail error", `{"detail": "unauthorised"}`},
+		{"not json", `not json`},
+		{"no namespaces", `{"namespaces": []}`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := BuildContext([]byte(c.body), false); got != Instruction {
+				t.Fatalf("%s: want the instruction alone, got:\n%s", c.body, got)
+			}
+		})
 	}
 }
 
@@ -75,10 +83,12 @@ func TestOutputShapes(t *testing.T) {
 		} `json:"hookSpecificOutput"`
 	}
 	for _, agent := range []string{"claude-code", "codex", "gemini-cli"} {
-		out, _ := Output(agent, "ctx")
-		if json.Unmarshal(out, &claude) != nil || claude.HookSpecificOutput.AdditionalContext != "ctx" || claude.HookSpecificOutput.HookEventName != "SessionStart" {
-			t.Fatalf("%s: %s", agent, out)
-		}
+		t.Run(agent, func(t *testing.T) {
+			out, _ := Output(agent, "ctx")
+			if json.Unmarshal(out, &claude) != nil || claude.HookSpecificOutput.AdditionalContext != "ctx" || claude.HookSpecificOutput.HookEventName != "SessionStart" {
+				t.Fatalf("%s: %s", agent, out)
+			}
+		})
 	}
 	var cursor map[string]string
 	out, _ := Output("cursor", "ctx")

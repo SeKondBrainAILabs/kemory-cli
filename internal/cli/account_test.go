@@ -53,16 +53,21 @@ func TestStatsMemoriesViewsAndGuards(t *testing.T) {
 	if v.methods["/api/v1/analytics/recall/memories"] != http.MethodGet {
 		t.Fatal("no request made")
 	}
-	for _, args := range [][]string{
-		{"stats", "memories", "--never-recalled", "--rated-down"},
-		{"stats", "memories", "--never-recalled", "--sort", "recalls"},
-		{"stats", "memories", "--rated-down", "--sort", "age"},
-		{"stats", "memories", "--sort", "size"},
-		{"stats", "--days", "400"},
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{"never recalled and rated down", []string{"stats", "memories", "--never-recalled", "--rated-down"}},
+		{"never recalled sorted by recalls", []string{"stats", "memories", "--never-recalled", "--sort", "recalls"}},
+		{"rated down sorted by age", []string{"stats", "memories", "--rated-down", "--sort", "age"}},
+		{"sort by size", []string{"stats", "memories", "--sort", "size"}},
+		{"days too large", []string{"stats", "--days", "400"}},
 	} {
-		if code, _, _ := run(t, args...); code != exits.Usage {
-			t.Fatalf("%v: got %d", args, code)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			if code, _, _ := run(t, c.args...); code != exits.Usage {
+				t.Fatalf("%v: got %d", c.args, code)
+			}
+		})
 	}
 }
 
@@ -123,13 +128,15 @@ func TestKeysAgentCommandsRejectAnAPIKeyWithoutSendingOrEchoingIt(t *testing.T) 
 	v := newFakeVault(t, map[string]func(http.ResponseWriter){})
 	const key = "kemory_3xampleKeyNotARealOne000000000000"
 	for _, cmd := range []string{"approve", "rotate", "revoke", "delete"} {
-		code, out, errOut := run(t, "keys", cmd, key)
-		if code != exits.Usage || !strings.Contains(errOut, "that is an API key, not an agent ID") {
-			t.Fatalf("%s: got %d %q", cmd, code, errOut)
-		}
-		if strings.Contains(out+errOut, key) {
-			t.Fatalf("%s echoed the key back:\n%s%s", cmd, out, errOut)
-		}
+		t.Run(cmd, func(t *testing.T) {
+			code, out, errOut := run(t, "keys", cmd, key)
+			if code != exits.Usage || !strings.Contains(errOut, "that is an API key, not an agent ID") {
+				t.Fatalf("%s: got %d %q", cmd, code, errOut)
+			}
+			if strings.Contains(out+errOut, key) {
+				t.Fatalf("%s echoed the key back:\n%s%s", cmd, out, errOut)
+			}
+		})
 	}
 	if code, _, errOut := run(t, "keys", "approve", "ag-1"); code != exits.Usage || !strings.Contains(errOut, "is not an agent ID") {
 		t.Fatalf("non-UUID: got %d %q", code, errOut)
@@ -168,19 +175,21 @@ func TestUpgradeNamesTheInstallersCommand(t *testing.T) {
 	fakeReleases(t, `[{"tag_name": "cli-v9.9.9", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`)
 	old := executablePath
 	t.Cleanup(func() { executablePath = old })
-	cases := map[string]string{
-		"/opt/homebrew/Cellar/kemory/0.7.0/libexec/kemory": "brew upgrade kemory",
-		"/home/a/.local/share/uv/tools/kemory/bin/kemory":  "uv tool upgrade kemory",
-		"/home/a/.local/pipx/venvs/kemory/bin/kemory":      "pipx upgrade kemory",
-		"/usr/lib/node_modules/kemory/bin/kemory":          "npm install -g kemory@9.9.9",
-		"/usr/local/bin/kemory":                            "Download 9.9.9",
+	cases := []struct{ name, exe, want string }{
+		{"homebrew", "/opt/homebrew/Cellar/kemory/0.7.0/libexec/kemory", "brew upgrade kemory"},
+		{"uv", "/home/a/.local/share/uv/tools/kemory/bin/kemory", "uv tool upgrade kemory"},
+		{"pipx", "/home/a/.local/pipx/venvs/kemory/bin/kemory", "pipx upgrade kemory"},
+		{"npm", "/usr/lib/node_modules/kemory/bin/kemory", "npm install -g kemory@9.9.9"},
+		{"direct download", "/usr/local/bin/kemory", "Download 9.9.9"},
 	}
-	for exe, want := range cases {
-		executablePath = func() (string, error) { return exe, nil }
-		code, out, _ := run(t, "upgrade")
-		if code != 0 || !strings.Contains(out, want) {
-			t.Fatalf("%s: got %d\n%s", exe, code, out)
-		}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			executablePath = func() (string, error) { return c.exe, nil }
+			code, out, _ := run(t, "upgrade")
+			if code != 0 || !strings.Contains(out, c.want) {
+				t.Fatalf("%s: got %d\n%s", c.exe, code, out)
+			}
+		})
 	}
 	t.Setenv("KEMORY_LAUNCHER", "npx")
 	if _, out, _ := run(t, "upgrade"); !strings.Contains(out, "npx always runs the newest release") {
@@ -191,10 +200,12 @@ func TestUpgradeNamesTheInstallersCommand(t *testing.T) {
 func TestCompletionScripts(t *testing.T) {
 	setHome(t)
 	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
-		code, out, _ := run(t, "completion", shell)
-		if code != 0 || !strings.Contains(out, "kemory") {
-			t.Fatalf("%s: got %d", shell, code)
-		}
+		t.Run(shell, func(t *testing.T) {
+			code, out, _ := run(t, "completion", shell)
+			if code != 0 || !strings.Contains(out, "kemory") {
+				t.Fatalf("%s: got %d", shell, code)
+			}
+		})
 	}
 }
 
@@ -202,9 +213,11 @@ func TestUpgradeAcceptsThePythonCLIsYesFlag(t *testing.T) {
 	setHome(t)
 	fakeReleases(t, `[{"tag_name": "cli-v9.9.9", "assets": [{"name": "kemory-linux-x64.tar.gz"}]}]`)
 	for _, flag := range []string{"--yes", "-y"} {
-		if code, _, errOut := run(t, "upgrade", flag); code != 0 {
-			t.Fatalf("%s: got %d %q", flag, code, errOut)
-		}
+		t.Run(flag, func(t *testing.T) {
+			if code, _, errOut := run(t, "upgrade", flag); code != 0 {
+				t.Fatalf("%s: got %d %q", flag, code, errOut)
+			}
+		})
 	}
 }
 
