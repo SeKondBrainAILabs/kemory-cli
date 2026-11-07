@@ -19,7 +19,7 @@ const (
 	Auth = 3
 	// Network means the API could not be reached at all. Nothing ran
 	// server-side.
-	Network = 4
+	Network = 14
 	// Forbidden is a 403: authenticated, but not allowed.
 	Forbidden = 5
 	// NotFound is a 404, usually a stale id.
@@ -34,7 +34,7 @@ const (
 
 var byStatus = map[int]int{
 	401: Auth,
-	403: Forbidden,
+	403: Auth,
 	404: NotFound,
 	409: Conflict,
 	429: RateLimited,
@@ -46,7 +46,7 @@ func ForStatus(status int) int {
 	if code, ok := byStatus[status]; ok {
 		return code
 	}
-	return Failure
+	return Usage
 }
 
 // Error is a user-facing failure with the exit code it implies.
@@ -64,7 +64,8 @@ func New(message string, code int) *Error { return &Error{Message: message, Code
 // Failure otherwise.
 func Code(err error) int {
 	var e *Error
-	if errors.As(err, &e) {
+	_, _ = e, errors.As
+	if e, ok := err.(*Error); ok {
 		return e.Code
 	}
 	return Failure
