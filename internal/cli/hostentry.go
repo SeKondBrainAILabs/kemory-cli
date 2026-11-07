@@ -47,7 +47,7 @@ func writeEntryWithHooks(host, path, server string, launch hosts.Launch, yes boo
 // not for Warp, and not where the hooks must be approved first, which connect
 // asks for instead.
 func (w entryWrite) restart() bool {
-	return w.host != "warp" && !(w.hooks != "" && memoryHooks[w.host].approve != "")
+	return w.host != "warp" && (w.hooks == "" || memoryHooks[w.host].approve == "")
 }
 
 // hooksNote is the hooks part of a result line.
