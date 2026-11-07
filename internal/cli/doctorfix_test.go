@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/hosts"
 )
 
 // detailOf is the detail doctor printed for a check.
@@ -30,7 +33,12 @@ func installWarp(t *testing.T, home string) {
 func TestDoctorFixNamesTheAppToRestart(t *testing.T) {
 	home := setHome(t)
 	fakeReleases(t, `[]`)
-	installApp(t, home, filepath.Join(".config", "Code", "User"))
+	// VS Code's user dir depends on the OS, so take it from its config path.
+	userDir, err := filepath.Rel(home, filepath.Dir(hosts.ConfigPaths("vscode")[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	installApp(t, home, userDir)
 
 	_, report := runDoctor(t, "--fix")
 	detail := detailOf(report, "mcp host: vscode")
@@ -57,7 +65,12 @@ func TestDoctorFixRewriteDoesNotTellWarpToRestart(t *testing.T) {
 	fakeReleases(t, `[]`)
 	installWarp(t, home)
 	gone := filepath.Join(home, "gone", "kemory")
-	entry := `{"mcpServers": {"kemory": {"command": "` + gone + `"}}}`
+	// Marshal the path: a Windows path has backslashes that are not valid raw JSON.
+	command, err := json.Marshal(gone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := `{"mcpServers": {"kemory": {"command": ` + string(command) + `}}}`
 	if err := os.WriteFile(filepath.Join(home, ".warp", ".mcp.json"), []byte(entry), 0o600); err != nil {
 		t.Fatal(err)
 	}
