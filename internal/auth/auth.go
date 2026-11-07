@@ -298,6 +298,10 @@ func Refresh(creds *config.Credentials) error {
 	if err := checkRedirect("refresh failed", resp); err != nil {
 		return err
 	}
+	if resp.StatusCode >= http.StatusInternalServerError {
+		// The issuer is failing, not rejecting the token; logging in cannot help.
+		return exits.New(fmt.Sprintf("%s returned %d on token refresh. Try again later.", creds.Issuer, resp.StatusCode), exits.Network)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return &FlowError{Message: fmt.Sprintf("refresh failed: %d %s. Run `kemory login`.", resp.StatusCode, body)}
 	}
@@ -316,7 +320,7 @@ func Refresh(creds *config.Credentials) error {
 // ValidCredentials loads the credentials for env, refreshing them when they
 // expire within a minute (or always, with force). It returns (nil, nil) when
 // the user must log in: no file, or the issuer rejected the refresh token.
-// A RedirectError or an unreachable issuer is returned as an error, because
+// A RedirectError, an unreachable issuer or a 5xx reply is returned as an error, because
 // logging in cannot fix either.
 func ValidCredentials(env string, force bool) (*config.Credentials, error) {
 	creds, err := config.LoadCredentials(env)
