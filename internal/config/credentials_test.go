@@ -187,3 +187,38 @@ func TestExpiresWithin(t *testing.T) {
 		t.Fatal("ExpiresWithin is wrong")
 	}
 }
+
+func TestFileWithoutEnvDefaultsToDefaultEnvAndSavesBackToItsPath(t *testing.T) {
+	setHome(t)
+	path := write(t, strings.Replace(pythonWritten, "  \"env\": \"prod\",\n", "", 1))
+	if strings.Contains(mustRead(t, path), `"env"`) {
+		t.Fatal("fixture still has an env key")
+	}
+	c, err := LoadCredentialsFile(path)
+	if err != nil || c == nil {
+		t.Fatalf("load: %v %v", c, err)
+	}
+	if c.Env != DefaultEnv {
+		t.Fatalf("Env = %q, want %q", c.Env, DefaultEnv)
+	}
+	if err := c.Save(); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := LoadCredentialsFile(path)
+	if err != nil || saved == nil || saved.Env != DefaultEnv {
+		t.Fatalf("reload from %s: %+v %v", path, saved, err)
+	}
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(filepath.Join(dir, "credentials-")); err == nil {
+		t.Fatal("Save wrote to credentials- instead of the env's own file")
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
