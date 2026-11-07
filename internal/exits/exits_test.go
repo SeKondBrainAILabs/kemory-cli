@@ -33,9 +33,16 @@ func TestCodeValuesAreStable(t *testing.T) {
 		name      string
 		got, want int
 	}{
-		{"OK", OK, 0}, {"Failure", Failure, 1}, {"Usage", Usage, 2}, {"Auth", Auth, 3},
-		{"Network", Network, 4}, {"Forbidden", Forbidden, 5}, {"NotFound", NotFound, 6},
-		{"Conflict", Conflict, 7}, {"RateLimited", RateLimited, 8}, {"Unavailable", Unavailable, 9},
+		{"OK", OK, 0},
+		{"Failure", Failure, 1},
+		{"Usage", Usage, 2},
+		{"Auth", Auth, 3},
+		{"Network", Network, 4},
+		{"Forbidden", Forbidden, 5},
+		{"NotFound", NotFound, 6},
+		{"Conflict", Conflict, 7},
+		{"RateLimited", RateLimited, 8},
+		{"Unavailable", Unavailable, 9},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
