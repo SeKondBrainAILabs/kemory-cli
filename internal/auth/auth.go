@@ -319,9 +319,11 @@ func Refresh(creds *config.Credentials) error {
 
 // ValidCredentials loads the credentials for env, refreshing them when they
 // expire within a minute (or always, with force). It returns (nil, nil) when
-// the user must log in: no file, or the issuer rejected the refresh token.
-// A RedirectError, an unreachable issuer or a 5xx reply is returned as an error, because
-// logging in cannot fix either.
+// the user must log in: no file, or the issuer rejected the refresh token and
+// the file holds no newer session. A rejected refresh re-reads the file for
+// about a second and uses a newer, unexpired session another process has
+// saved meanwhile. A RedirectError, an unreachable issuer or a 5xx reply is
+// returned as an error, because logging in cannot fix either.
 func ValidCredentials(env string, force bool) (*config.Credentials, error) {
 	creds, err := config.LoadCredentials(env)
 	if err != nil || creds == nil {
@@ -331,15 +333,46 @@ func ValidCredentials(env string, force bool) (*config.Credentials, error) {
 		return creds, nil
 	}
 	if force || creds.ExpiresWithin(60*time.Second) {
+		sent := creds.RefreshToken // Refresh leaves creds unchanged on failure
 		if err := Refresh(creds); err != nil {
 			// Only a genuine rejection means "log in again". A redirect (stale
 			// issuer) or an unreachable issuer must keep its own message.
 			var flow *FlowError
 			if errors.As(err, &flow) {
-				return nil, nil
+				return savedSessionAfterRejection(env, sent), nil
 			}
 			return nil, err
 		}
 	}
 	return creds, nil
+}
+
+const (
+	rejectedRefreshPollInterval = 200 * time.Millisecond
+	rejectedRefreshExtraReads   = 5
+)
+
+// savedSessionAfterRejection handles a refresh the issuer rejected. Another
+// process may have won the refresh with the same token and be about to save
+// (or have saved) the rotated session, so it re-reads the file while it still
+// holds the refresh token that was sent. It returns the first different
+// session that is not about to expire, or nil when the user must log in.
+// It never refreshes again and never writes the file.
+func savedSessionAfterRejection(env, sent string) *config.Credentials {
+	for i := 0; ; i++ {
+		saved, err := config.LoadCredentials(env)
+		if err != nil || saved == nil {
+			return nil
+		}
+		if saved.RefreshToken != sent {
+			if saved.ExpiresWithin(60 * time.Second) {
+				return nil
+			}
+			return saved
+		}
+		if i == rejectedRefreshExtraReads {
+			return nil
+		}
+		Sleep(rejectedRefreshPollInterval)
+	}
 }
