@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -120,6 +121,118 @@ func TestKeysRevokeAsksAndDeleteNeedsRevokeFirst(t *testing.T) {
 	}
 	if code, _, errOut := run(t, "keys", "delete", agentID); code != exits.Conflict || !strings.Contains(errOut, "revoked first") {
 		t.Fatalf("got %d %q", code, errOut)
+	}
+}
+
+func noBodyReply(status int) func(w http.ResponseWriter) {
+	return func(w http.ResponseWriter) { w.WriteHeader(status) }
+}
+
+func TestKeysRotatePrintsTheNewKeyAndSaysTheOldOneIsInvalid(t *testing.T) {
+	path := "/api/v1/agents/" + agentID + "/rotate-key"
+	for _, status := range []int{200, 201} {
+		setHome(t)
+		v := newFakeVault(t, map[string]func(http.ResponseWriter){
+			path: jsonReply(status, `{"agent_id": "`+agentID+`", "api_key": "kemory_rotatedKey", "status": "active"}`),
+		})
+		code, out, errOut := run(t, "keys", "rotate", agentID)
+		if code != 0 {
+			t.Fatalf("%d: got exit %d\n%s\n%s", status, code, out, errOut)
+		}
+		for _, want := range []string{"Key rotated. The old key is now invalid.", "agent_id : " + agentID, "api_key  : kemory_rotatedKey"} {
+			if !strings.Contains(out, want) {
+				t.Fatalf("%d: missing %q in stdout:\n%s", status, want, out)
+			}
+		}
+		if v.methods[path] != http.MethodPost {
+			t.Fatalf("%d: method %q", status, v.methods[path])
+		}
+	}
+}
+
+func TestKeysRotateWarnsWhenTheNewKeyIsPendingApproval(t *testing.T) {
+	setHome(t)
+	path := "/api/v1/agents/" + agentID + "/rotate-key"
+	newFakeVault(t, map[string]func(http.ResponseWriter){
+		path: jsonReply(200, `{"agent_id": "`+agentID+`", "api_key": "kemory_rotatedKey", "status": "pending_approval"}`),
+	})
+	code, out, errOut := run(t, "keys", "rotate", agentID)
+	all := out + errOut
+	if code != 0 {
+		t.Fatalf("got exit %d\n%s", code, all)
+	}
+	for _, want := range []string{"status      : pending_approval", "kemory keys approve " + agentID} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("missing %q:\n%s", want, all)
+		}
+	}
+}
+
+func TestKeysApprovePrintsTheNewStatus(t *testing.T) {
+	path := "/api/v1/agents/" + agentID + "/approve"
+	for body, want := range map[string]string{
+		`{"status": "active"}`: "Agent approved — status is now active.",
+		`{}`:                   "status is now ?.",
+	} {
+		setHome(t)
+		v := newFakeVault(t, map[string]func(http.ResponseWriter){path: jsonReply(200, body)})
+		code, out, errOut := run(t, "keys", "approve", agentID)
+		if code != 0 || !strings.Contains(out+errOut, want) {
+			t.Fatalf("%s: got %d\n%s\n%s", body, code, out, errOut)
+		}
+		if v.methods[path] != http.MethodPost {
+			t.Fatalf("%s: method %q", body, v.methods[path])
+		}
+	}
+}
+
+func TestKeysDeleteSucceedsOn204And200(t *testing.T) {
+	path := "/api/v1/agents/" + agentID
+	for _, reply := range []func(http.ResponseWriter){noBodyReply(204), jsonReply(200, `{}`)} {
+		setHome(t)
+		v := newFakeVault(t, map[string]func(http.ResponseWriter){path: reply})
+		code, out, errOut := run(t, "keys", "delete", agentID)
+		if code != 0 || !strings.Contains(out+errOut, "Agent deleted.") {
+			t.Fatalf("got %d\n%s\n%s", code, out, errOut)
+		}
+		if v.methods[path] != http.MethodDelete {
+			t.Fatalf("method %q", v.methods[path])
+		}
+	}
+}
+
+func TestKeysAgentCommandsMapAPIFailuresToExitCodes(t *testing.T) {
+	base := "/api/v1/agents/" + agentID
+	cmds := []struct {
+		args   []string
+		path   string
+		method string
+		label  string
+	}{
+		{[]string{"keys", "rotate", agentID}, base + "/rotate-key", http.MethodPost, "Key rotation"},
+		{[]string{"keys", "approve", agentID}, base + "/approve", http.MethodPost, "Approval"},
+		{[]string{"keys", "revoke", agentID, "--yes"}, base + "/revoke", http.MethodPost, "Revocation"},
+		{[]string{"keys", "delete", agentID}, base, http.MethodDelete, "Deletion"},
+	}
+	statuses := []struct{ status, exit int }{{403, exits.Forbidden}, {500, exits.Failure}}
+	for _, c := range cmds {
+		for _, s := range statuses {
+			setHome(t)
+			v := newFakeVault(t, map[string]func(http.ResponseWriter){
+				c.path: jsonReply(s.status, `{"detail": "nope"}`),
+			})
+			code, out, errOut := run(t, c.args...)
+			want := fmt.Sprintf("%s failed: %d", c.label, s.status)
+			if code != s.exit || !strings.Contains(errOut, want) {
+				t.Fatalf("%s %d: got exit %d, stderr %q", c.label, s.status, code, errOut)
+			}
+			if v.methods[c.path] != c.method {
+				t.Fatalf("%s %d: request not sent, method %q", c.label, s.status, v.methods[c.path])
+			}
+			if strings.Contains(out, "api_key") {
+				t.Fatalf("%s %d: failure printed a key line:\n%s", c.label, s.status, out)
+			}
+		}
 	}
 }
 
