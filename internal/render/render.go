@@ -38,7 +38,8 @@ func Configure(disableColor, json, q bool) {
 // JSONMode reports whether the caller asked for machine-readable output.
 func JSONMode() bool { return jsonMode }
 
-func isTerminal(w io.Writer) bool {
+// isTerminal is a variable so tests can stand in a terminal.
+var isTerminal = func(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	return ok && term.IsTerminal(int(f.Fd()))
 }
@@ -405,7 +406,8 @@ func padRight(s string, n int) string {
 	return s + strings.Repeat(" ", n-len(s))
 }
 
-func terminalWidth(w io.Writer) int {
+// terminalWidth is a variable so tests can stand in a terminal of a fixed width.
+var terminalWidth = func(w io.Writer) int {
 	f, ok := w.(*os.File)
 	if !ok || !term.IsTerminal(int(f.Fd())) {
 		return 0
