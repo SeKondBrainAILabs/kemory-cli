@@ -29,15 +29,18 @@ func TestForStatusMapping(t *testing.T) {
 }
 
 func TestCodeValuesAreStable(t *testing.T) {
-	want := map[string]struct{ got, want int }{
-		"OK": {OK, 0}, "Failure": {Failure, 1}, "Usage": {Usage, 2}, "Auth": {Auth, 3},
-		"Network": {Network, 4}, "Forbidden": {Forbidden, 5}, "NotFound": {NotFound, 6},
-		"Conflict": {Conflict, 7}, "RateLimited": {RateLimited, 8}, "Unavailable": {Unavailable, 9},
+	cases := []struct {
+		name      string
+		got, want int
+	}{
+		{"OK", OK, 0}, {"Failure", Failure, 1}, {"Usage", Usage, 2}, {"Auth", Auth, 3},
+		{"Network", Network, 4}, {"Forbidden", Forbidden, 5}, {"NotFound", NotFound, 6},
+		{"Conflict", Conflict, 7}, {"RateLimited", RateLimited, 8}, {"Unavailable", Unavailable, 9},
 	}
-	for name, c := range want {
-		t.Run(name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			if c.got != c.want {
-				t.Fatalf("%s = %d, want %d", name, c.got, c.want)
+				t.Fatalf("%s = %d, want %d", c.name, c.got, c.want)
 			}
 		})
 	}
