@@ -48,8 +48,10 @@ Windows (x64). They are attached to each
 [GitHub release](https://github.com/SeKondBrainAILabs/kemory-cli/releases)
 with checksums and build provenance
 (`gh attestation verify <file> --repo SeKondBrainAILabs/kemory-cli`).
-`kemory upgrade` tells you whether a newer release exists and how to update
-the copy you installed.
+`kemory upgrade` checks for a newer release and, after asking, upgrades the copy
+you installed with the tool that installed it (Homebrew, npm, uv or pipx;
+`--yes` skips the question). For pip it prints the command. `kemory upgrade
+--check` only reports and changes nothing.
 
 ## Commands
 
@@ -70,7 +72,7 @@ the copy you installed.
 | `kemory namespaces`, `kemory export` | List namespaces, export the whole vault as JSON |
 | `kemory stats` | Recall usage and its token cost; `stats memories` for what is never recalled or rated down |
 | `kemory keys` | Create, rotate, approve, revoke, delete and list API keys for agents |
-| `kemory upgrade`, `telemetry`, `completion` | Check for a newer CLI, set your analytics preference, shell completion |
+| `kemory upgrade`, `telemetry`, `completion` | Upgrade the CLI (`upgrade --check` only checks), set your analytics preference, shell completion |
 
 Every command accepts `--output json` for scripts and agents (stdout then
 carries only the JSON payload), `--quiet`, `--no-color` and `--env <name>`.
@@ -256,7 +258,8 @@ architecture (`X-Kemory-Client`), and the name of the command being run
 (`X-Kemory-Command`, never its arguments). Kemory uses the last two for product
 analytics; `kemory telemetry off` turns that off for your account.
 `kemory doctor` and `kemory upgrade` also read the public release list on
-GitHub to compare versions.
+GitHub to compare versions. For an npm install, `kemory upgrade` asks
+registry.npmjs.org for the latest version instead.
 
 How SeKondBrain handles your account and vault data is set out in the
 [Privacy Policy](https://docs.sekondbrain.ai/legal/privacy/).
