@@ -45,6 +45,10 @@ type doctor struct {
 	checks []checkResult
 	// fresh is the refreshed sign-in, kept to name the org in the report.
 	fresh *config.Credentials
+	// wired and fixable are tallied by checkHosts: the hosts that reach
+	// Kemory, and whether `doctor --fix` would change any of them.
+	wired   int
+	fixable bool
 }
 
 func (d *doctor) emit(label string, status render.Status, detail string) {
@@ -333,7 +337,7 @@ func meSummary(body []byte) string {
 // checkHosts reports each MCP host and returns whether `doctor --fix` would
 // change something. An entry only counts where the host app is installed.
 func (d *doctor) checkHosts(creds *config.Credentials) bool {
-	wired, fixable := 0, false
+	d.wired, d.fixable = 0, false
 	launch := hosts.LaunchFor(d.g.env)
 	covered := coveredElsewhere(d.g.env, creds, time.Now())
 	for _, host := range hosts.Names {
@@ -349,122 +353,130 @@ func (d *doctor) checkHosts(creds *config.Credentials) bool {
 		}
 		switch {
 		case reason != "" && toolsOnlyPlugins[host]:
-			wired++
-			if d.hooksBesidePlugin(label, host, path, reason, dupes, launch) {
-				fixable = true
-			}
+			d.hooksBesidePlugin(label, host, path, reason, dupes, launch)
 		case reason != "" && (len(dupes) > 0 || leftoverHooks(host)):
-			wired++
-			if d.removeDuplicate(label, host, path, reason, dupes) {
-				fixable = true
-			}
+			d.removeDuplicate(label, host, path, reason, dupes)
 		case reason != "" && installed:
-			wired++
+			d.wired++
 			d.emit(label, render.Pass, reason)
 		case reason == "" && installed && commandMissing(command):
-			// The entry starts a kemory that is no longer installed, so the
-			// client fails to start Kemory. Writing it again fixes it.
-			if !d.fix {
-				fixable = true
-				d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed. `kemory doctor --fix` rewrites its entry")
-				continue
-			}
-			done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
-				return hosts.WriteEntry(host, path, d.g.profile.ServerName, launch)
-			})
-			switch {
-			case err != nil:
-				d.emit(label, render.Fail, err.Error())
-				continue
-			case !done:
-				d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed — "+note)
-				continue
-			}
-			wired++
-			detail := joinNote("rewrote the kemory entry in "+path, orDefault(note, "restart "+ui.AppName(host)))
-			if hooks, err := addHooks(host, launch); err != nil {
-				detail = joinNote(detail, "memory hooks not added: "+err.Error())
-			} else {
-				detail = joinNote(detail, hooks)
-			}
-			d.emit(label, render.Pass, detail)
+			d.rewriteEntry(label, host, path, command, launch)
 		case len(entries) > 0 && installed && needsHooks(host):
-			wired++
-			if !d.fix {
-				fixable = true
-				d.emit(label, render.Skip, path+" — tools only, no automatic memory. `kemory doctor --fix` adds the hooks")
-				continue
-			}
-			hooks, err := addHooks(host, launch)
-			if err != nil {
-				d.emit(label, render.Fail, "memory hooks not added: "+err.Error())
-				continue
-			}
-			d.emit(label, render.Pass, joinNote(path, hooks))
+			d.addMissingHooks(label, host, path, launch)
 		case len(entries) > 0 && installed:
-			wired++
-			detail := path
-			if _, ok := memoryHooks[host]; ok {
-				detail += " — automatic memory hooks installed"
-			}
-			d.emit(label, render.Pass, detail)
+			d.wired++
+			d.emit(label, render.Pass, path+hooksInstalledNote(host))
 		case len(entries) > 0:
-			if !d.fix {
-				fixable = true
-				d.emit(label, render.Skip, fmt.Sprintf("%s is not installed but %s has a kemory entry", host, path))
-				continue
-			}
-			if err := hosts.RemoveEntries(host, path, entries); err != nil {
-				d.emit(label, render.Fail, err.Error())
-				continue
-			}
-			d.emit(label, render.Pass, "removed kemory entry — "+host+" is not installed")
+			d.removeStale(label, host, path, entries)
 		case installed:
-			if !d.fix {
-				fixable = true
-				d.emit(label, render.Skip, "installed, not connected")
-				continue
-			}
-			plugin, pluginErr := tryPlugin(d.g.env, host)
-			if plugin {
-				wired++
-				d.emit(label, render.Pass, pluginInstalled(host))
-				continue
-			}
-			if pluginErr != nil {
-				d.emit(label+" plugin", render.Skip, pluginFallback(pluginErr))
-			}
-			done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
-				return hosts.WriteEntry(host, path, d.g.profile.ServerName, launch)
-			})
-			switch {
-			case err != nil:
-				d.emit(label, render.Fail, err.Error())
-			case !done:
-				d.emit(label, render.Skip, "installed, not connected — "+note)
-			default:
-				wired++
-				detail := joinNote(fmt.Sprintf("wrote kemory entry into %s", path), orDefault(note, "restart "+host))
-				if hooks, err := addHooks(host, launch); err != nil {
-					detail = joinNote(detail, "memory hooks not added: "+err.Error())
-				} else {
-					detail = joinNote(detail, hooks)
-				}
-				d.emit(label, render.Pass, detail)
-			}
+			d.connectInstalled(label, host, path, launch)
 		}
 	}
-	if wired == 0 {
+	if d.wired == 0 {
 		d.emit("mcp host config", render.Fail, "no installed MCP host has a kemory entry")
 	}
-	return !d.fix && (wired == 0 || fixable)
+	return !d.fix && (d.wired == 0 || d.fixable)
+}
+
+func hooksInstalledNote(host string) string {
+	if _, ok := memoryHooks[host]; ok {
+		return " — automatic memory hooks installed"
+	}
+	return ""
+}
+
+// rewriteEntry handles an entry that starts a kemory that is no longer
+// installed, so the client fails to start Kemory. Writing it again fixes it.
+func (d *doctor) rewriteEntry(label, host, path, command string, launch hosts.Launch) {
+	if !d.fix {
+		d.fixable = true
+		d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed. `kemory doctor --fix` rewrites its entry")
+		return
+	}
+	w, err := writeEntryWithHooks(host, path, d.g.profile.ServerName, launch, d.yes, resumeArgs(d.g.env, "doctor", "--fix"))
+	switch {
+	case err != nil:
+		d.emit(label, render.Fail, err.Error())
+	case !w.done:
+		d.emit(label, render.Fail, "cannot start Kemory: "+filepath.Base(command)+" is not installed — "+w.note)
+	default:
+		d.wired++
+		d.emit(label, render.Pass, d.wroteDetail("rewrote the kemory entry in "+path, w))
+	}
+}
+
+// wroteDetail is the report line for a written entry: what was written, then
+// what happened to the app or how to restart it, then the hooks.
+func (d *doctor) wroteDetail(written string, w entryWrite) string {
+	detail := joinNote(written, orDefault(w.note, restartStep(w.host)))
+	return joinNote(detail, w.hooksNote())
+}
+
+// addMissingHooks adds the memory hooks to a host that has the tools only.
+func (d *doctor) addMissingHooks(label, host, path string, launch hosts.Launch) {
+	d.wired++
+	if !d.fix {
+		d.fixable = true
+		d.emit(label, render.Skip, path+" — tools only, no automatic memory. `kemory doctor --fix` adds the hooks")
+		return
+	}
+	hooks, err := addHooks(host, launch)
+	if err != nil {
+		d.emit(label, render.Fail, "memory hooks not added: "+err.Error())
+		return
+	}
+	d.emit(label, render.Pass, joinNote(path, hooks))
+}
+
+// removeStale removes the kemory entry of a host that is not installed.
+func (d *doctor) removeStale(label, host, path string, entries []string) {
+	if !d.fix {
+		d.fixable = true
+		d.emit(label, render.Skip, fmt.Sprintf("%s is not installed but %s has a kemory entry", host, path))
+		return
+	}
+	if err := hosts.RemoveEntries(host, path, entries); err != nil {
+		d.emit(label, render.Fail, err.Error())
+		return
+	}
+	d.emit(label, render.Pass, "removed kemory entry — "+host+" is not installed")
+}
+
+// connectInstalled connects an installed host that has no Kemory yet: the
+// plugin where there is one, else the MCP entry plus memory hooks.
+func (d *doctor) connectInstalled(label, host, path string, launch hosts.Launch) {
+	if !d.fix {
+		d.fixable = true
+		d.emit(label, render.Skip, "installed, not connected")
+		return
+	}
+	plugin, pluginErr := tryPlugin(d.g.env, host)
+	if plugin {
+		d.wired++
+		d.emit(label, render.Pass, pluginInstalled(host))
+		return
+	}
+	if pluginErr != nil {
+		d.emit(label+" plugin", render.Skip, pluginFallback(pluginErr))
+	}
+	w, err := writeEntryWithHooks(host, path, d.g.profile.ServerName, launch, d.yes, resumeArgs(d.g.env, "doctor", "--fix"))
+	switch {
+	case err != nil:
+		d.emit(label, render.Fail, err.Error())
+	case !w.done:
+		d.emit(label, render.Skip, "installed, not connected — "+w.note)
+	default:
+		d.wired++
+		d.emit(label, render.Pass, d.wroteDetail("wrote kemory entry into "+path, w))
+	}
 }
 
 // removeDuplicate handles a host that reaches Kemory another way and also has
 // a kemory entry, which gives it every tool twice, or kemory hooks, which
-// capture each session twice. It reports whether `doctor --fix` would remove
+// capture each session twice. It records whether `doctor --fix` would remove
 // them.
-func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []string) bool {
+func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []string) {
+	d.wired++
 	var found, files []string
 	if len(dupes) > 0 {
 		found = append(found, path+" also has a kemory entry")
@@ -482,7 +494,8 @@ func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []strin
 			it = "them"
 		}
 		d.emit(label, render.Skip, dup+". `kemory doctor --fix` removes "+it+".")
-		return true
+		d.fixable = true
+		return
 	}
 	done, note, err := withAppClosed(host, d.yes, resumeArgs(d.g.env, "doctor", "--fix"), func() error {
 		if len(dupes) > 0 {
@@ -501,48 +514,53 @@ func (d *doctor) removeDuplicate(label, host, path, reason string, dupes []strin
 	case !done:
 		d.emit(label, render.Skip, dup+". "+note)
 	default:
-		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate from %s; %s", strings.Join(files, " and "), reason), orDefault(note, "restart "+host)))
+		d.emit(label, render.Pass, joinNote(fmt.Sprintf("removed the duplicate from %s; %s", strings.Join(files, " and "), reason), orDefault(note, restartStep(host))))
 	}
-	return false
 }
 
 // hooksBesidePlugin handles a host whose Kemory plugin brings the tools but no
 // hooks, which kemory adds. A kemory entry there gives the host every tool
-// twice. It reports whether `doctor --fix` would change something.
-func (d *doctor) hooksBesidePlugin(label, host, path, reason string, dupes []string, launch hosts.Launch) bool {
+// twice. It records whether `doctor --fix` would change something.
+func (d *doctor) hooksBesidePlugin(label, host, path, reason string, dupes []string, launch hosts.Launch) {
+	d.wired++
 	needed := needsHooks(host)
 	if !d.fix {
 		switch {
 		case len(dupes) > 0:
 			d.emit(label, render.Skip, fmt.Sprintf("duplicate tools: already %s, and %s also has a kemory entry. `kemory doctor --fix` removes it.", reason, path))
-			return true
+			d.fixable = true
+			return
 		case needed:
 			d.emit(label, render.Skip, "already "+reason+" — tools only, no automatic memory. `kemory doctor --fix` adds the hooks")
-			return true
+			d.fixable = true
+			return
 		}
 		d.emit(label, render.Pass, pluginWithHooks+" ("+memoryHooks[host].path()+")")
-		return false
+		return
 	}
 	detail := pluginWithHooks
 	if len(dupes) > 0 {
 		if err := hosts.RemoveEntries(host, path, dupes); err != nil {
 			d.emit(label, render.Fail, err.Error())
-			return false
+			return
 		}
-		detail = joinNote(detail, "removed the duplicate entry from "+path+"; restart "+host)
+		removed := "removed the duplicate entry from " + path
+		if step := restartStep(host); step != "" {
+			removed += "; " + step
+		}
+		detail = joinNote(detail, removed)
 	}
 	if needed {
 		hooks, err := addHooks(host, launch)
 		if err != nil {
 			d.emit(label, render.Fail, "memory hooks not added: "+err.Error())
-			return false
+			return
 		}
 		detail = joinNote(detail, hooks)
 	} else {
 		detail += " (" + memoryHooks[host].path() + ")"
 	}
 	d.emit(label, render.Pass, detail)
-	return false
 }
 
 // checkFreshness compares this build with the newest release. A failed lookup

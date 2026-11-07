@@ -203,32 +203,27 @@ func connectHost(g *globals, h, name string, launch hosts.Launch, written map[st
 		}
 	}
 	path := hosts.ResolveConfig(h)
-	resume := resumeArgs(g.env, "mcp", "install", "--host", h)
-	done, note, err := withAppClosed(h, false, resume, func() error { return hosts.WriteEntry(h, path, name, launch) })
+	w, err := writeEntryWithHooks(h, path, name, launch, false, resumeArgs(g.env, "mcp", "install", "--host", h))
 	switch {
 	case err != nil:
 		return hostResult{host: h, detail: err.Error(), short: err.Error()}
-	case !done:
-		return hostResult{host: h, detail: note, short: note}
+	case !w.done:
+		return hostResult{host: h, detail: w.note, short: w.note}
 	}
 	written[h] = true
-	r := hostResult{host: h, detail: joinNote(path, note), ok: true, short: levelTools}
-	// Warp picks up its config on save.
-	r.restart = h != "warp"
+	r := hostResult{host: h, detail: joinNote(path, w.note), ok: true, short: levelTools, restart: w.restart()}
 	if pluginErr != nil {
 		r.detail = joinNote(r.detail, pluginFallback(pluginErr))
 		r.short += " (no plugin: " + pluginErr.Error() + ")"
 	}
-	hooks, err := addHooks(h, launch)
 	switch {
-	case err != nil:
-		r.detail = joinNote(r.detail, "memory hooks not added: "+err.Error())
+	case w.hooksErr != nil:
+		r.detail = joinNote(r.detail, w.hooksNote())
 		r.short += " · could not add full memory"
-	case hooks != "":
-		r.detail = joinNote(r.detail, hooks)
+	case w.hooks != "":
+		r.detail = joinNote(r.detail, w.hooks)
 		r.short = strings.Replace(r.short, levelTools, levelFull, 1)
 		if memoryHooks[h].approve != "" {
-			r.restart = false
 			r.next = "Open " + ui.AppName(h) + " and approve the memory hooks with /hooks"
 		}
 	}
