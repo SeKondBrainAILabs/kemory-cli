@@ -16,6 +16,30 @@ Thanks for helping improve the Kemory CLI. By taking part you agree to the
   and internal hostnames are rejected by `scripts/check-public-hygiene.sh`,
   which CI runs on every pull request.
 
+## Architecture
+
+Code lives in `cmd/kemory` and the packages under `internal/`. Packages form
+layers, and an import may only point down the list below. Keep the graph
+acyclic and add an import only when the table allows it; if you need one it
+doesn't allow, change this section in the same pull request and explain why.
+
+| Package | May import (from `internal/`) |
+| --- | --- |
+| `cmd/kemory` | `cli` |
+| `cli` | `api`, `auth`, `bridge`, `config`, `exits`, `hook`, `hosts`, `releases`, `render`, `residency`, `ui`, `version` |
+| `bridge` | `api`, `auth`, `config`, `residency`, `version` |
+| `api` | `auth`, `config`, `exits`, `residency`, `version` |
+| `auth` | `config`, `exits` |
+| `hosts` | `jsonedit` |
+| `config`, `exits`, `hook`, `jsonedit`, `releases`, `render`, `residency`, `ui`, `version` | nothing |
+
+In particular:
+
+- Only `cli` wires the packages together. `hosts` and `hook` never import
+  `cli` or `api`, and no package imports `cli`.
+- Leaf packages stay leaves. Pass what they need as arguments instead of
+  importing another `internal/` package.
+
 ## Development
 
 You need Go (the version in `go.mod`) and `make`.
