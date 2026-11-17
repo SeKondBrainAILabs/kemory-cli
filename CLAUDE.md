@@ -1,31 +1,49 @@
 # CLAUDE.md
 
-Notes for working in this repo. Read `CONTRIBUTING.md` first: its ground rules
-and package layering apply here too.
+Kemory CLI, a Go program. Code lives in `cmd/kemory` and `internal/`.
+`CONTRIBUTING.md` is the source for the rules below; read it before a change.
+
+## Architecture
+
+Packages form layers and an import may only point down. The full table is in
+`CONTRIBUTING.md#architecture`; in short:
+
+- `cmd/kemory` imports `cli`. Only `cli` wires packages together, and nothing
+  imports `cli`.
+- `bridge` imports `api`, `auth`, `config`, `residency`, `version`.
+- `api` imports `auth`, `config`, `exits`, `residency`, `version`.
+- `auth` imports `config`, `exits`. `hosts` imports `jsonedit`.
+- `config`, `exits`, `hook`, `jsonedit`, `releases`, `render`, `residency`,
+  `ui`, `version` are leaves: pass them what they need as arguments.
+
+To add an import the table forbids, change the table in the same PR.
+
+## Commands
+
+- `make test` runs `go test -race ./...`. `make check` runs hygiene, lint, test
+  and vuln, which is what CI runs.
+- Run one package with `go test ./internal/<pkg>`.
 
 ## Tests
 
-- Styled output in `internal/render` (tables, checks, marks) only runs when
-  `isTerminal(w)` sees a terminal, and its layout depends on
-  `terminalWidth(w)`. Tests reach it only by swapping those func variables (see
-  `styledTerminal` in `internal/render/styled_test.go`). Strip ANSI codes before
-  asserting, and don't call `t.Parallel()` in these tests: render state is
-  package-global.
+Tests never touch a real account or the network. Each test sets `HOME` to a
+temporary directory and talks to an in-process fake API or identity provider
+built on `net/http/httptest`. A test that needs the network or the real
+`~/.kemory` is a bug.
 
-## Shared output
+## Traps
 
-- `pluginInstalled` (`internal/cli/plugins.go`) builds the result line for both
-  `kemory connect` and `kemory doctor --fix`. Changing its text changes both
-  commands' output and the tests that pin them.
-
-## Restricted networks
-
-- Where go.dev, dl.google.com, proxy.golang.org and golang.org don't resolve,
-  `mise install go` fails, and so do `make test`, `make lint` and other
-  `go run` tools. Go 1.27 can be installed from PyPI instead
-  (`pip install go-bin` in a venv). Then build with `GOPROXY=direct`,
-  `GOSUMDB=off` and a copy of `go.mod` passed with `-modfile` that replaces
-  the modules hosted there (`golang.org/x/term`, `sys`, `text`; also
-  `go.yaml.in` and `gopkg.in` modules) with their github.com mirrors, e.g.
-  `golang.org/x/term` with `github.com/golang/term`. If that isn't possible,
-  verify the change through the pull request's CI checks.
+- **`packaging/opencode/index.js` is generated.** Don't edit it by hand. After
+  changing the plugin that `kemory connect` writes, run
+  `UPDATE_OPENCODE_PLUGIN=1 go test ./internal/hosts`; otherwise
+  `TestOpenCodeNPMPluginIsCurrent` fails.
+- **Public hygiene.** The repo is public. `scripts/check-public-hygiene.sh`
+  (`make hygiene`) rejects ticket ids, links to internal trackers and internal
+  hostnames in any tracked file, including this one. Run it before pushing.
+- **Exit codes are a contract** (`internal/exits`): add new ones, never
+  renumber or reuse.
+- **The credentials file format is shared** with other Kemory clients
+  (`internal/config`): add fields, never rename or remove one.
+- **`kemory mcp serve` owns stdout** for JSON-RPC. Write diagnostics to stderr.
+- Commits and PR titles use Conventional Commits, for example
+  `fix(login): report a stale issuer`.
