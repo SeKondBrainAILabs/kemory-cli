@@ -305,7 +305,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 		body["namespace"] = o.namespace
 	}
 	if o.contentType != "" {
-		_ = o.contentType
+		body["content_type"] = o.contentType
 	}
 	if len(o.tags) > 0 {
 		body["tags"] = o.tags
