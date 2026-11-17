@@ -378,7 +378,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 		total = *data.Total
 	}
 	line := fmt.Sprintf("%d of %d", shown, total)
-	if o.namespace == "" {
+	if o.namespace != "" {
 		line += " (excludes synthetic loadtest:/bench: namespaces; `kemory export` includes them)"
 	}
 	render.Muted(line)
