@@ -41,7 +41,7 @@ def read_binary(archive: Path) -> tuple[str, bytes]:
     """Return the binary's name and bytes. Only that one member is read."""
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
-            return "kemory.exe", zf.read("kemory.exe")
+            return "kemory", zf.read("kemory.exe")
     with tarfile.open(archive, "r:gz") as tf:
         member = tf.getmember("kemory")
         if not member.isfile():
