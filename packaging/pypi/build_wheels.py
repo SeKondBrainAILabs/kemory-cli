@@ -31,7 +31,7 @@ TARGETS = {
     "macos-x64": ["macosx_12_0_x86_64"],
     "linux-x64": ["manylinux_2_17_x86_64", "manylinux2014_x86_64", "musllinux_1_1_x86_64"],
     "linux-arm64": ["manylinux_2_17_aarch64", "manylinux2014_aarch64", "musllinux_1_1_aarch64"],
-    "windows-x64": ["win_amd64"],
+    "windows-x64": ["win32"],
 }
 
 SUMMARY = "Kemory CLI: connect Claude Code, Cursor and other MCP clients to your Kemory memory vault"
