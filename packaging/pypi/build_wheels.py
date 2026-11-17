@@ -52,7 +52,7 @@ def read_binary(archive: Path) -> tuple[str, bytes]:
 
 
 def record_line(path: str, data: bytes) -> str:
-    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).decode()
     return f"{path},sha256={digest},{len(data)}"
 
 
