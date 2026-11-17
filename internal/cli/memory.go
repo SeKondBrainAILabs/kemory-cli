@@ -297,7 +297,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 	if err != nil {
 		return err
 	}
-	body := map[string]any{"limit": o.limit, "offset": o.offset, "search_mode": mode}
+	body := map[string]any{"limit": o.limit, "search_mode": mode}
 	if query != "" {
 		body["query"] = query
 	}
