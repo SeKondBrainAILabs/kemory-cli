@@ -204,6 +204,7 @@ Scripts and agents can act on why a command failed:
 | `KEMORY_ENV` | Environment to use: `prod` (default), `india`, `local`, or one from the environments file |
 | `KEMORY_URL` | Use this Kemory API host instead of the environment's |
 | `KEMORY_OIDC_ISSUER`, `KEMORY_CLI_CLIENT_ID` | Identity provider and client for self-hosted Kemory |
+| `KEMORY_DASHBOARD_URL` | Dashboard address that `kemory browse` (deprecated) points you to, instead of the environment's |
 | `KEMORY_API_KEY` | `mcp serve` authenticates with this key instead of your sign-in |
 | `KEMORY_HTTP_TIMEOUT` | Seconds `mcp serve` waits for Kemory (default 120) |
 | `KEMORY_OUTPUT` | `text` or `json`, like `--output` |
