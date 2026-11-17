@@ -310,7 +310,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 	if len(o.tags) > 0 {
 		body["tags"] = o.tags
 	}
-	if minRelevance != nil {
+	if minRelevance != nil && *minRelevance > 0 {
 		body["min_relevance"] = *minRelevance
 	}
 	title := "Searching your memories…"
