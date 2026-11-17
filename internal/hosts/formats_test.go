@@ -339,3 +339,38 @@ func TestTOMLStringEscapes(t *testing.T) {
 		t.Fatalf("got %v %v", doc, err)
 	}
 }
+
+func TestTOMLMultilineStringClosedByExtraQuotes(t *testing.T) {
+	// A closing run of four or five quotes ends the string with its last
+	// three; the leading ones are content. Reading them as a new string
+	// would hide the "]" that closes the array and with it the kemory table.
+	for name, body := range map[string]string{
+		"basic four":   "tags = [\"\"\"a\"\"\"\", \"b\"]\n",
+		"basic five":   "tags = [\"\"\"a\"\"\"\"\", \"b\"]\n",
+		"literal four": "tags = ['''a'''', 'b']\n",
+		"literal five": "tags = ['''a''''', 'b']\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := setHome(t)
+			path := filepath.Join(home, ".codex", "config.toml")
+			mustWrite(t, path, "model = \"gpt-5\"\n"+body+"\n[mcp_servers.kemory]\ncommand = \"old\"\n\n[profiles.fast]\nmodel = \"mini\"\n")
+			before := decodeTOML(t, path)
+			if err := WriteEntry("codex", path, "kemory", LaunchFor("prod")); err != nil {
+				t.Fatal(err)
+			}
+			got := read(t, path)
+			if strings.Contains(got, `"old"`) || strings.Count(got, "[mcp_servers.kemory]") != 1 {
+				t.Fatalf("the old entry was not replaced:\n%s", got)
+			}
+			if !reflect.DeepEqual(without(before, "kemory"), without(decodeTOML(t, path), "kemory")) {
+				t.Fatal("settings other than the kemory entry changed")
+			}
+			if err := RemoveEntries("codex", path, []string{"kemory"}); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(read(t, path), "kemory") || !reflect.DeepEqual(without(before, "kemory"), without(decodeTOML(t, path), "")) {
+				t.Fatalf("removal went wrong:\n%s", read(t, path))
+			}
+		})
+	}
+}
