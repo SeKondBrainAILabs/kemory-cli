@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/jsonedit"
 )
@@ -43,13 +44,9 @@ func readJSON(path, key string) (cfg, servers *jsonedit.Object, err error) {
 	return cfg, servers, nil
 }
 
-func writeJSONEntry(path string, h host, name string, launch Launch) error {
-	key := h.key
-	cfg, servers, err := readJSON(path, key)
-	if err != nil {
-		return err
-	}
-	// Structs, not maps, so the entry reads type, command, args, env.
+// entryFor is the server entry host gets, as structs rather than maps so it
+// reads type, command, args, env.
+func entryFor(h host, launch Launch) any {
 	var entry any = struct {
 		Command string            `json:"command"`
 		Args    []string          `json:"args"`
@@ -77,6 +74,22 @@ func writeJSONEntry(path string, h host, name string, launch Launch) error {
 			Tools   []string          `json:"tools"`
 		}{"local", launch.Command, launch.Args, map[string]string{}, []string{"*"}}
 	}
+	return entry
+}
+
+// useJSONC reports whether the config at path is read as JSON with comments:
+// the host always does, and so does any .jsonc file.
+func useJSONC(h host, path string) bool {
+	return h.jsonc || strings.HasSuffix(path, ".jsonc")
+}
+
+func writeJSONEntry(path string, h host, name string, launch Launch) error {
+	key := h.key
+	cfg, servers, err := readJSON(path, key)
+	if err != nil {
+		return err
+	}
+	entry := entryFor(h, launch)
 	if err := servers.SetValue(name, entry); err != nil {
 		return err
 	}
