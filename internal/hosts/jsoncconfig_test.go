@@ -107,6 +107,29 @@ func TestZedRemovingTheLastServerDropsTheCommaBeforeIt(t *testing.T) {
 	}
 }
 
+func TestZedAcceptsTrailingCommaBeforeArrayEnd(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("zed")
+	const before = `{
+  "theme": "One Dark",
+  "wrap_guides": [80, 100, // the guides
+  ],
+}
+`
+	writeTestFile(t, path, before)
+	if err := WriteEntry("zed", path, "kemory", LaunchFor("prod")); err != nil {
+		t.Fatalf("refused a trailing comma before ]: %v", err)
+	}
+	got := read(t, path)
+	if !strings.Contains(got, `"wrap_guides": [80, 100, // the guides
+  ]`) || !strings.Contains(got, `"theme": "One Dark"`) {
+		t.Fatalf("changed the array or the settings around it:\n%s", got)
+	}
+	if names := KemoryEntries("zed", path); len(names) != 1 || names[0] != "kemory" {
+		t.Fatalf("entries: %v\n%s", names, got)
+	}
+}
+
 func TestZedRefusesAFileItCannotRead(t *testing.T) {
 	setHome(t)
 	path := ResolveConfig("zed")
