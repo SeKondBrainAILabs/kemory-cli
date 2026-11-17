@@ -18,7 +18,12 @@ func TestWrapNeverSplitsABacktickedCommand(t *testing.T) {
 }
 
 func TestWrapRespectsWidth(t *testing.T) {
-	for _, l := range WrapKeepingCommands("one two three four five six seven", 10) {
+	input := "one two three four five six seven"
+	lines := WrapKeepingCommands(input, 10)
+	if strings.Join(lines, " ") != input {
+		t.Fatalf("text changed: %q", lines)
+	}
+	for _, l := range lines {
 		if len(l) > 10 {
 			t.Fatalf("line too long: %q", l)
 		}

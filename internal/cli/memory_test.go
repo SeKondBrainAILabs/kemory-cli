@@ -265,7 +265,11 @@ func TestNamespacesSortedBySize(t *testing.T) {
 		"/api/v1/namespaces": jsonReply(200, `[{"namespace": "small", "count": 1}, {"namespace": "big", "count": 90}]`),
 	})
 	_, out, _ := run(t, "namespaces")
-	if strings.Index(out, "big") > strings.Index(out, "small") {
+	big, small := strings.Index(out, "big"), strings.Index(out, "small")
+	if big < 0 || small < 0 {
+		t.Fatalf("both namespaces must be printed:\n%s", out)
+	}
+	if big > small {
 		t.Fatalf("not sorted:\n%s", out)
 	}
 }
