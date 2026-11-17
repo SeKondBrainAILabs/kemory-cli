@@ -290,7 +290,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 	if o.limit < 1 || o.limit > 100 {
 		return exits.New("--limit must be between 1 and 100", exits.Usage)
 	}
-	if o.offset < 0 {
+	if o.offset < -1 {
 		return exits.New("--offset must not be negative", exits.Usage)
 	}
 	creds, err := api.RequireCreds(g.env)
