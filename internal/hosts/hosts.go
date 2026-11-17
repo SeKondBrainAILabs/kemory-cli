@@ -391,7 +391,7 @@ func KemoryEntries(name, path string) []string {
 	switch {
 	case h.toml:
 		names = tomlServerNames(path)
-	case h.jsonc:
+	case useJSONC(h, path):
 		names = jsoncServerNames(path, h.key)
 	default:
 		names = jsonServerNames(path, h.key)
@@ -426,7 +426,7 @@ func EntryCommand(name, path, server string) string {
 		servers, _ := doc[tomlServersKey].(map[string]any)
 		entry, _ := servers[server].(map[string]any)
 		command = entry["command"]
-	case h.jsonc:
+	case useJSONC(h, path):
 		_, doc, err := readJSONC(path)
 		if err != nil {
 			return ""
@@ -519,12 +519,8 @@ func WriteEntry(name, path, server string, launch Launch) error {
 	if h.toml {
 		return writeTOMLEntry(path, server, launch)
 	}
-	if h.jsonc {
-		return writeJSONCEntry(path, h.key, server, struct {
-			Command string            `json:"command"`
-			Args    []string          `json:"args"`
-			Env     map[string]string `json:"env"`
-		}{launch.Command, launch.Args, map[string]string{}})
+	if useJSONC(h, path) {
+		return writeJSONCEntry(path, h.key, server, entryFor(h, launch))
 	}
 	return writeJSONEntry(path, h, server, launch)
 }
@@ -542,7 +538,7 @@ func RemoveEntries(name, path string, servers []string) error {
 	switch {
 	case h.toml:
 		emptied, err = removeTOMLEntries(path, servers)
-	case h.jsonc:
+	case useJSONC(h, path):
 		emptied, err = removeJSONCEntries(path, h.key, servers)
 	default:
 		emptied, err = removeJSONEntries(path, h.key, servers)
