@@ -85,6 +85,28 @@ func TestZedAddsBesideOtherContextServers(t *testing.T) {
 	}
 }
 
+func TestZedRemovingTheLastServerDropsTheCommaBeforeIt(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("zed")
+	writeTestFile(t, path, `{
+  "context_servers": {
+    "github": { "command": "gh-mcp" },
+    "kemory": { "command": "kemory" }
+  }
+}`)
+	if err := RemoveEntries("zed", path, []string{"kemory"}); err != nil {
+		t.Fatal(err)
+	}
+	want := `{
+  "context_servers": {
+    "github": { "command": "gh-mcp" }
+  }
+}`
+	if got := read(t, path); got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestZedRefusesAFileItCannotRead(t *testing.T) {
 	setHome(t)
 	path := ResolveConfig("zed")
