@@ -84,7 +84,7 @@ def build(version: str, target: str, archive: Path, out: Path) -> Path:
     name, binary = read_binary(archive)
     dist_info = f"kemory-{version}.dist-info"
     files: list[tuple[str, bytes, int]] = [
-        (f"kemory-{version}.data/scripts/{name}", binary, 0o644),
+        (f"kemory-{version}.data/scripts/{name}", binary, 0o755),
         (f"{dist_info}/METADATA", metadata(version), 0o644),
         (
             f"{dist_info}/WHEEL",
