@@ -305,7 +305,9 @@ func TestHostWheelInstallsAndRunsKemoryVersion(t *testing.T) {
 		t.Skipf("no wheel for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 	py := python(t)
-	t.Setenv("HOME", t.TempDir())
+	// HOME stays as it is: pointing it at a temp dir would put the Go module
+	// cache there, and its read-only files break the temp dir's cleanup. Nothing
+	// here reads ~/.kemory.
 	dist := t.TempDir()
 	out := filepath.Join(dist, "wheels")
 
@@ -313,15 +315,9 @@ func TestHostWheelInstallsAndRunsKemoryVersion(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		binName, venvBin = "kemory.exe", "Scripts"
 	}
-	goBin := filepath.Join(runtime.GOROOT(), "bin", "go")
-	if runtime.GOOS == "windows" {
-		goBin += ".exe"
-	}
-	if _, err := os.Stat(goBin); err != nil {
-		var lookErr error
-		if goBin, lookErr = exec.LookPath("go"); lookErr != nil {
-			t.Fatalf("no go binary: %v", lookErr)
-		}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatalf("no go binary: %v", err)
 	}
 	built := filepath.Join(t.TempDir(), binName)
 	build := exec.Command(goBin, "build", "-o", built,
