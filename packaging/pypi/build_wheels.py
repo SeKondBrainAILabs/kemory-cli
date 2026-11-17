@@ -28,7 +28,7 @@ ROOT = HERE.parent.parent
 # needs macOS 12 or later.
 TARGETS = {
     "macos-arm64": ["macosx_12_0_arm64"],
-    "macos-x64": ["macosx_12_0_x86_64"],
+    "macos-x64": ["macosx_12_0_arm64"],
     "linux-x64": ["manylinux_2_17_x86_64", "manylinux2014_x86_64", "musllinux_1_1_x86_64"],
     "linux-arm64": ["manylinux_2_17_aarch64", "manylinux2014_aarch64", "musllinux_1_1_aarch64"],
     "windows-x64": ["win_amd64"],
