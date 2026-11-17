@@ -308,7 +308,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 		body["content_type"] = o.contentType
 	}
 	if len(o.tags) > 0 {
-		body["tags"] = o.tags
+		body["tags"] = strings.Split(strings.Join(o.tags, ","), ",")
 	}
 	if minRelevance != nil {
 		body["min_relevance"] = *minRelevance
