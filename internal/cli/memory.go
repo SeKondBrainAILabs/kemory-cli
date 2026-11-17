@@ -373,7 +373,7 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 		render.Muted(fmt.Sprintf("%d shown (top-K; there is no corpus count in hybrid mode)", shown))
 		return nil
 	}
-	total := 0
+	total := shown
 	if data.Total != nil {
 		total = *data.Total
 	}
