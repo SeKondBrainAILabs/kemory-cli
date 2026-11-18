@@ -32,7 +32,10 @@ func setup(t *testing.T) {
 type upstream struct {
 	mu    sync.Mutex
 	calls []upstreamCall
-	reply func(method string, params json.RawMessage, h http.Header) (int, string)
+	// meStatus is the status GET /api/v1/me answers; 0 keeps the default 404.
+	meStatus int
+	meCalls  []http.Header
+	reply    func(method string, params json.RawMessage, h http.Header) (int, string)
 }
 
 type upstreamCall struct {
@@ -46,6 +49,16 @@ func (u *upstream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/mcp/v1":
 	case "/api/v1/residency/cell":
 		w.Write([]byte(`{"is_home_cell": true}`))
+		return
+	case "/api/v1/me":
+		u.mu.Lock()
+		u.meCalls = append(u.meCalls, r.Header.Clone())
+		status := u.meStatus
+		u.mu.Unlock()
+		if status == 0 {
+			status = http.StatusNotFound
+		}
+		w.WriteHeader(status)
 		return
 	default:
 		w.WriteHeader(http.StatusNotFound)
@@ -79,6 +92,12 @@ func (u *upstream) callsTo(method string) []upstreamCall {
 		}
 	}
 	return out
+}
+
+func (u *upstream) meRequests() []http.Header {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return append([]http.Header(nil), u.meCalls...)
 }
 
 func ok(result string) (int, string) {
@@ -425,5 +444,188 @@ func TestAWrongCellRefusalIsRecoveredOnceAndSaved(t *testing.T) {
 	}
 	if c, _ := config.LoadCredentials("prod"); c.KemoryURL != "https://api.kemory.in.sekondbrain.ai" {
 		t.Fatalf("new cell not saved: %s", c.KemoryURL)
+	}
+}
+
+// routeHosts sends both the bridge's and the residency package's requests to
+// the in-process fakes, so no test reaches the real cell hosts.
+func routeHosts(t *testing.T, router hostRouter) {
+	t.Helper()
+	oldBridge, oldResidency := HTTPClient, residency.HTTPClient
+	HTTPClient = &http.Client{Transport: router}
+	residency.HTTPClient = &http.Client{Transport: router}
+	t.Cleanup(func() { HTTPClient, residency.HTTPClient = oldBridge, oldResidency })
+}
+
+const (
+	zurichURL = "https://api.kemory.s9n.ai"
+	mumbaiURL = "https://api.kemory.in.sekondbrain.ai"
+)
+
+// refusingZurich answers every tools call with a wrong-cell refusal; a
+// non-empty targetAPI is sent as the refusal's target host.
+func refusingZurich(targetAPI string) *upstream {
+	target := ""
+	if targetAPI != "" {
+		target = `, "target_hosts": {"api": "` + targetAPI + `"}`
+	}
+	return &upstream{reply: func(method string, p json.RawMessage, h http.Header) (int, string) {
+		if method == "tools/call" || method == "tools/list" {
+			return 403, `{"detail": {"code": "ORG_WRONG_RESIDENCY_CELL", "this_cell": "zurich"` + target + `}}`
+		}
+		return defaultReply(method, p, h)
+	}}
+}
+
+func savedURL(t *testing.T) string {
+	t.Helper()
+	c, err := config.LoadCredentials("prod")
+	if err != nil || c == nil {
+		t.Fatalf("credentials: %v %v", c, err)
+	}
+	return c.KemoryURL
+}
+
+// onlyTool returns the single tool of a tools/list result.
+func onlyTool(t *testing.T, resp map[string]any) map[string]any {
+	t.Helper()
+	tools := result(t, resp)["tools"].([]any)
+	if len(tools) != 1 {
+		t.Fatalf("want one tool, got %v", tools)
+	}
+	return tools[0].(map[string]any)
+}
+
+func TestARefusalWithoutATargetProbesTheOtherCellAndSavesIt(t *testing.T) {
+	setup(t)
+	zurich := refusingZurich("")
+	mumbai := &upstream{reply: defaultReply, meStatus: http.StatusOK}
+	routeHosts(t, hostRouter{"api.kemory.s9n.ai": zurich, "api.kemory.in.sekondbrain.ai": mumbai})
+
+	saveCreds(t, zurichURL, "https://unused.invalid", time.Hour)
+	resp := session(t, `{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "x"}}`)
+
+	content := result(t, resp["3"])["content"].([]any)
+	if !strings.Contains(content[0].(map[string]any)["text"].(string), "re-targeted") || content[1].(map[string]any)["text"] != "found 2" {
+		t.Fatalf("content: %v", content)
+	}
+	if got := savedURL(t); got != mumbaiURL {
+		t.Fatalf("new cell not saved: %s", got)
+	}
+	probes := mumbai.meRequests()
+	if len(probes) != 1 {
+		t.Fatalf("want one /me probe, got %d", len(probes))
+	}
+	if got := probes[0].Get("Authorization"); got != "Bearer at" {
+		t.Fatalf("probe Authorization = %q", got)
+	}
+}
+
+func TestWhenNoCellAnswersTheSavedURLStaysAndTheWrongRegionToolShows(t *testing.T) {
+	tests := []struct {
+		name     string
+		mumbai   *upstream // nil leaves mumbai out of the router
+		wantMeIn int
+	}{
+		{"the other cell rejects the identity", &upstream{reply: defaultReply, meStatus: http.StatusUnauthorized}, 1},
+		{"the other cell is unreachable", nil, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setup(t)
+			router := hostRouter{"api.kemory.s9n.ai": refusingZurich("")}
+			if tc.mumbai != nil {
+				router["api.kemory.in.sekondbrain.ai"] = tc.mumbai
+			}
+			routeHosts(t, router)
+
+			saveCreds(t, zurichURL, "https://unused.invalid", time.Hour)
+			resp := session(t, `{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}`)
+
+			tool := onlyTool(t, resp["2"])
+			desc, _ := tool["description"].(string)
+			if tool["name"] != "kemory_wrong_region" || !strings.Contains(desc, "Automatic re-targeting failed") || strings.Contains(desc, "(API endpoint") {
+				t.Fatalf("tool: %v", tool)
+			}
+			if got := savedURL(t); got != zurichURL {
+				t.Fatalf("saved URL changed to %s", got)
+			}
+			if tc.mumbai != nil {
+				if n := len(tc.mumbai.meRequests()); n != tc.wantMeIn {
+					t.Fatalf("mumbai /me requests = %d, want %d", n, tc.wantMeIn)
+				}
+				if n := len(tc.mumbai.callsTo("tools/list")); n != 0 {
+					t.Fatalf("mumbai got %d tools/list calls", n)
+				}
+			}
+		})
+	}
+}
+
+func TestAnOperatorKemoryURLIsNeverRetargetedAfterARefusal(t *testing.T) {
+	setup(t)
+	t.Setenv("KEMORY_URL", zurichURL)
+	zurich := refusingZurich(mumbaiURL)
+	mumbai := &upstream{reply: defaultReply, meStatus: http.StatusOK}
+	routeHosts(t, hostRouter{"api.kemory.s9n.ai": zurich, "api.kemory.in.sekondbrain.ai": mumbai})
+
+	saveCreds(t, zurichURL, "https://unused.invalid", time.Hour)
+	resp := session(t,
+		`{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}`,
+		`{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "x"}}`)
+
+	desc, _ := onlyTool(t, resp["2"])["description"].(string)
+	for _, want := range []string{"(API endpoint " + mumbaiURL + ")", "KEMORY_URL is set and pins this bridge to the wrong cell"} {
+		if !strings.Contains(desc, want) {
+			t.Fatalf("tool description lacks %q: %s", want, desc)
+		}
+	}
+	call := result(t, resp["3"])
+	text := call["content"].([]any)[0].(map[string]any)["text"].(string)
+	if call["isError"] != true || !strings.Contains(text, "KEMORY_URL is set and pins this bridge to that URL") {
+		t.Fatalf("tools/call result: %v", call)
+	}
+	if got := savedURL(t); got != zurichURL {
+		t.Fatalf("saved URL changed to %s", got)
+	}
+	if n := len(mumbai.callsTo("tools/call")) + len(mumbai.callsTo("tools/list")); n != 0 {
+		t.Fatalf("mumbai got %d MCP calls", n)
+	}
+	if n := len(mumbai.meRequests()); n != 0 {
+		t.Fatalf("mumbai got %d /me requests", n)
+	}
+}
+
+func TestASelfHostedURLIsNotRetargetedAfterARefusal(t *testing.T) {
+	setup(t)
+	const selfHosted = "https://kemory.selfhosted.test"
+	zurich := &upstream{reply: defaultReply, meStatus: http.StatusOK}
+	mumbai := &upstream{reply: defaultReply, meStatus: http.StatusOK}
+	routeHosts(t, hostRouter{
+		"kemory.selfhosted.test":       refusingZurich(""),
+		"api.kemory.s9n.ai":            zurich,
+		"api.kemory.in.sekondbrain.ai": mumbai,
+	})
+
+	saveCreds(t, selfHosted, "https://unused.invalid", time.Hour)
+	resp := session(t, `{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}`)
+
+	tool := onlyTool(t, resp["2"])
+	if desc, _ := tool["description"].(string); tool["name"] != "kemory_wrong_region" || !strings.Contains(desc, "Automatic re-targeting failed") {
+		t.Fatalf("tool: %v", tool)
+	}
+	if got := savedURL(t); got != selfHosted {
+		t.Fatalf("saved URL changed to %s", got)
+	}
+	if n := len(zurich.meRequests()) + len(mumbai.meRequests()); n != 0 {
+		t.Fatalf("cells got %d /me requests", n)
+	}
+}
+
+func TestAnswersMeIsFalseForAHostThatIsNotAURL(t *testing.T) {
+	// The control character makes request construction fail before any
+	// transport is involved.
+	if (&Bridge{}).answersMe("http://bad\x7fhost", http.Header{}) {
+		t.Fatal("answersMe reported true for an unparsable host")
 	}
 }
