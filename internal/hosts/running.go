@@ -45,6 +45,13 @@ var (
 // ErrNoAppControl means kemory cannot quit or start the app on this OS.
 var ErrNoAppControl = errors.New("kemory cannot quit or start this app on " + runtime.GOOS)
 
+// Tests swap these to feed sample output on any OS.
+var (
+	goos       = runtime.GOOS
+	runCommand = command
+	parentPID  = os.Getppid
+)
+
 func command(timeout time.Duration, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -55,9 +62,9 @@ func isRunning(name string) bool {
 	if !RewritesWhileRunning(name) {
 		return false
 	}
-	switch runtime.GOOS {
+	switch goos {
 	case "darwin":
-		out, err := command(3*time.Second, "ps", "-axo", "comm=")
+		out, err := runCommand(3*time.Second, "ps", "-axo", "comm=")
 		if err != nil {
 			return false
 		}
@@ -67,7 +74,7 @@ func isRunning(name string) bool {
 			}
 		}
 	case "windows":
-		out, err := command(3*time.Second, "tasklist", "/FI", "IMAGENAME eq Claude.exe", "/NH")
+		out, err := runCommand(3*time.Second, "tasklist", "/FI", "IMAGENAME eq Claude.exe", "/NH")
 		if err != nil {
 			return false
 		}
@@ -77,15 +84,15 @@ func isRunning(name string) bool {
 }
 
 func insideApp(name string) bool {
-	if !RewritesWhileRunning(name) || runtime.GOOS != "darwin" {
+	if !RewritesWhileRunning(name) || goos != "darwin" {
 		return false
 	}
-	pid := os.Getppid()
+	pid := parentPID()
 	for range 40 {
 		if pid <= 1 {
 			return false
 		}
-		out, err := command(3*time.Second, "ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid))
+		out, err := runCommand(3*time.Second, "ps", "-o", "ppid=,comm=", "-p", strconv.Itoa(pid))
 		if err != nil {
 			return false
 		}
@@ -108,12 +115,12 @@ func quitApp(name string, timeout time.Duration) error {
 		return nil
 	}
 	var err error
-	switch runtime.GOOS {
+	switch goos {
 	case "darwin":
-		_, err = command(10*time.Second, "osascript", "-e", `quit app "Claude"`)
+		_, err = runCommand(10*time.Second, "osascript", "-e", `quit app "Claude"`)
 	case "windows":
 		// Without /F this asks the app to close, as clicking its close button does.
-		_, err = command(10*time.Second, "taskkill", "/IM", "Claude.exe")
+		_, err = runCommand(10*time.Second, "taskkill", "/IM", "Claude.exe")
 	default:
 		return ErrNoAppControl
 	}
@@ -153,11 +160,11 @@ func samePath(a, b string) bool {
 }
 
 func handOff(line string) error {
-	if runtime.GOOS != "darwin" {
+	if goos != "darwin" {
 		return ErrNoAppControl
 	}
 	quoted := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(line)
-	_, err := command(10*time.Second, "osascript",
+	_, err := runCommand(10*time.Second, "osascript",
 		"-e", `tell application "Terminal" to do script "`+quoted+`"`,
 		"-e", `tell application "Terminal" to activate`)
 	return err
@@ -167,9 +174,9 @@ func openApp(name string) error {
 	if !RewritesWhileRunning(name) {
 		return nil
 	}
-	if runtime.GOOS != "darwin" {
+	if goos != "darwin" {
 		return ErrNoAppControl
 	}
-	_, err := command(10*time.Second, "open", "-a", "Claude")
+	_, err := runCommand(10*time.Second, "open", "-a", "Claude")
 	return err
 }
