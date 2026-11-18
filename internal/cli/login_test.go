@@ -87,21 +87,22 @@ func (f *loginFirstAPI) asked(path string) bool {
 	return false
 }
 
-// cellBTransport serves https://cell-b.example.test in-process (the home-cell
+// hostTransport serves https://cell-b.example.test in-process (the home-cell
 // discovery only accepts an https host without a port, so it cannot be a
 // loopback server) and hands every other request to the previous transport,
 // the loopback guard. With handler nil, cell-b cannot be reached.
-type cellBTransport struct {
+type hostTransport struct {
 	handler http.Handler
 	next    http.RoundTripper
+	host    string
 }
 
-func (c cellBTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if r.URL.Host != "cell-b.example.test" {
+func (c hostTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Host != c.host {
 		return c.next.RoundTrip(r)
 	}
 	if c.handler == nil {
-		return nil, errors.New("cell-b.example.test is unreachable")
+		return nil, errors.New(c.host + " is unreachable")
 	}
 	rec := httptest.NewRecorder()
 	c.handler.ServeHTTP(rec, r)
@@ -110,9 +111,16 @@ func (c cellBTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func routeCellB(t *testing.T, handler http.Handler) {
 	t.Helper()
+	routeHost(t, "cell-b.example.test", handler)
+}
+
+// routeHost serves host in-process with handler (nil: the host cannot be
+// reached) and restores both transports when the test ends.
+func routeHost(t *testing.T, host string, handler http.Handler) {
+	t.Helper()
 	oldAPI, oldResidency := api.HTTPClient.Transport, residency.HTTPClient.Transport
-	api.HTTPClient.Transport = cellBTransport{handler: handler, next: oldAPI}
-	residency.HTTPClient.Transport = cellBTransport{handler: handler, next: oldResidency}
+	api.HTTPClient.Transport = hostTransport{handler: handler, next: oldAPI, host: host}
+	residency.HTTPClient.Transport = hostTransport{handler: handler, next: oldResidency, host: host}
 	t.Cleanup(func() {
 		api.HTTPClient.Transport, residency.HTTPClient.Transport = oldAPI, oldResidency
 	})
@@ -207,6 +215,9 @@ func TestLoginSavesTheHomeCellEvenWhenItCannotBeReachedAfterwards(t *testing.T) 
 
 func TestLoginStaysPutWhenTheHomeCellIsNotATrustedHost(t *testing.T) {
 	setHome(t)
+	// Unreachable, not guarded: a login that wrongly moves there must fail the
+	// assertions below instead of panicking in the loopback guard.
+	routeHost(t, "untrusted.example.test", nil)
 	first := newLoginFirstAPI(t, `{"is_home_cell": false, "cell_hosts": {"api": "https://untrusted.example.test"}}`, "", http.StatusOK)
 
 	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
