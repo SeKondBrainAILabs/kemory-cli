@@ -227,7 +227,7 @@ func TestLoginStaysPutWhenTheHomeCellIsNotATrustedHost(t *testing.T) {
 
 func TestLoginExplainsADeviceFlowFailure(t *testing.T) {
 	setHome(t)
-	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	issuer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(w, `{"error": "invalid_client"}`)
 	}))
