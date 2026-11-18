@@ -574,12 +574,24 @@ func removeEmptyDirs(dir string, appDirs []string) {
 }
 
 // writeFile replaces path atomically, since the host app may read it at any
-// time. It keeps an existing file's mode.
+// time. It keeps an existing file's mode. When path is a symlink it writes the
+// file the link points at and leaves the link alone, so a config kept in a
+// dotfiles repo stays managed there. A link to a missing file is an error: the
+// target's directory is the user's layout, not ours to create.
 func writeFile(path string, body []byte) error {
 	mode := fs.FileMode(0o644)
-	switch info, err := os.Stat(path); {
+	switch _, err := os.Lstat(path); {
 	case err == nil:
+		resolved, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", path, err)
+		}
+		info, err := os.Stat(resolved)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
 		mode = info.Mode().Perm()
+		path = resolved
 	case errors.Is(err, fs.ErrNotExist):
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // the host app's own config dir, normally readable
 			return err
