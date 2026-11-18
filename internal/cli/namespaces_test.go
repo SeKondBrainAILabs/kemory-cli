@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -48,7 +50,7 @@ func TestNamespacesSummaryJSONPrintsRawBody(t *testing.T) {
 		"/api/v1/namespaces/alpha/summary": jsonReply(200, body),
 	})
 	code, out, _ := run(t, "namespaces", "summary", "alpha", "--json")
-	if code != 0 || strings.TrimSpace(out) != body {
+	if code != 0 || compactJSON(t, out) != compactJSON(t, body) {
 		t.Fatalf("got %d %q", code, out)
 	}
 }
@@ -81,7 +83,17 @@ func TestNamespacesJSONPrintsRawBody(t *testing.T) {
 		"/api/v1/namespaces": jsonReply(200, body),
 	})
 	code, out, _ := run(t, "namespaces", "--json")
-	if code != 0 || strings.TrimSpace(out) != body {
+	if code != 0 || compactJSON(t, out) != compactJSON(t, body) {
 		t.Fatalf("got %d %q", code, out)
 	}
+}
+
+// compactJSON strips insignificant whitespace; the command re-indents the raw body.
+func compactJSON(t *testing.T, s string) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := json.Compact(&b, []byte(s)); err != nil {
+		t.Fatalf("not JSON: %q: %v", s, err)
+	}
+	return b.String()
 }
