@@ -88,7 +88,7 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	// recovery in the API layer still covers every case. Discovery answers for
 	// the token's org, so it is skipped when another org is selected.
 	if !residency.SelectionOverridesDiscovery(creds.ActiveOrgID, creds.OrgID) {
-		if home := residency.DiscoverHomeCell(creds.KemoryURL, api.Headers(creds)); home == "" {
+		if home := residency.DiscoverHomeCell(creds.KemoryURL, api.Headers(creds)); home != "" {
 			creds.KemoryURL = home
 			if err := creds.Save(); err != nil {
 				return err
