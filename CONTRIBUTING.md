@@ -48,13 +48,15 @@ You need Go (the version in `go.mod`) and `make`.
 make build     # ./kemory
 make test      # go test -race ./...
 make lint      # golangci-lint (the version CI uses)
+make lint-packaging  # ruff + Biome on packaging/ (needs uv and Node)
 make fmt       # gofumpt + goimports
 make vuln      # govulncheck
 make snapshot  # GoReleaser build of all release targets into dist/
 ```
 
 Run `make check` before opening a pull request; CI runs the same checks on
-Linux, macOS and Windows.
+Linux, macOS and Windows. `make check` now also needs uv and Node, for
+`make lint-packaging`; `make lint` stays Go-only.
 
 ### Tests
 

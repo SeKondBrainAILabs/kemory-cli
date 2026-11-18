@@ -1,0 +1,24 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.8/schema.json",
+  "files": {
+    "includes": ["packaging/**/*.js"]
+  },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": { "recommended": true }
+  },
+  "overrides": [
+    {
+      // These files are CommonJS (package.json has no "type": "module"),
+      // so "use strict" is not redundant.
+      "includes": ["packaging/npm/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noRedundantUseStrict": "off" }
+        }
+      }
+    }
+  ]
+}
