@@ -259,14 +259,34 @@ func TestWriteEntryKeepsASymlinkedConfigALink(t *testing.T) {
 		before     string
 		keep       string // text that must survive in the target
 	}{
-		{"cursor, absolute link", "cursor", func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
-			"dotfiles/cursor/mcp.json", false, `{"mcpServers": {"other": {"command": "x"}}}`, `"other"`},
-		{"cursor, relative link", "cursor", func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
-			"dotfiles/cursor/mcp.json", true, `{"mcpServers": {"other": {"command": "x"}}}`, `"other"`},
-		{"codex, toml", "codex", func() string { return filepath.Join(home(), ".codex", "config.toml") },
-			"dotfiles/codex/config.toml", false, "model = \"gpt\"\n", `model = "gpt"`},
-		{"zed, jsonc", "zed", func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
-			"dotfiles/zed/settings.json", false, "// my theme\n{\"theme\": \"One\"}\n", `// my theme`},
+		{
+			"cursor, absolute link", "cursor",
+			func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			"dotfiles/cursor/mcp.json", false,
+			`{"mcpServers": {"other": {"command": "x"}}}`,
+			`"other"`,
+		},
+		{
+			"cursor, relative link", "cursor",
+			func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			"dotfiles/cursor/mcp.json", true,
+			`{"mcpServers": {"other": {"command": "x"}}}`,
+			`"other"`,
+		},
+		{
+			"codex, toml", "codex",
+			func() string { return filepath.Join(home(), ".codex", "config.toml") },
+			"dotfiles/codex/config.toml", false,
+			"model = \"gpt\"\n",
+			`model = "gpt"`,
+		},
+		{
+			"zed, jsonc", "zed",
+			func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
+			"dotfiles/zed/settings.json", false,
+			"// my theme\n{\"theme\": \"One\"}\n",
+			`// my theme`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
