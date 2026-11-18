@@ -87,11 +87,11 @@ func (f *loginFirstAPI) asked(path string) bool {
 	return false
 }
 
-// hostTransport serves one https host (host) in-process (the home-cell
-// discovery only accepts an https host without a port, so it cannot be a
-// loopback server) and hands every other request to the previous transport,
-// the loopback guard. With handler nil, cell-b cannot be reached.
-// the loopback guard. With handler nil, host cannot be reached.
+// hostTransport serves one https host in-process (the home-cell discovery
+// only accepts an https host without a port, so it cannot be a loopback
+// server) and hands every other request to the previous transport, the
+// loopback guard. With handler nil, the host cannot be reached.
+type hostTransport struct {
 	handler http.Handler
 	next    http.RoundTripper
 	host    string
