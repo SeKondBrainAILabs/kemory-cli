@@ -47,7 +47,8 @@ def read_binary(archive: Path) -> tuple[str, bytes]:
         if not member.isfile():
             raise SystemExit(f"{archive}: kemory is not a regular file")
         data = tf.extractfile(member)
-        assert data is not None
+        if data is None:
+            raise SystemExit(f"{archive}: cannot read kemory")
         return "kemory", data.read()
 
 
