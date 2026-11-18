@@ -90,6 +90,9 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	if !residency.SelectionOverridesDiscovery(creds.ActiveOrgID, creds.OrgID) {
 		if home := residency.DiscoverHomeCell(creds.KemoryURL, api.Headers(creds)); home != "" {
 			creds.KemoryURL = home
+			if err := creds.Save(); err != nil {
+				return err
+			}
 			render.Accent("→ Your organisation's data lives in another region; using " + home + ".")
 		}
 	}
