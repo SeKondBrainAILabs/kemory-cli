@@ -152,15 +152,21 @@ func TestRedactKeepsProse(t *testing.T) {
 
 func TestRedactKeepsURLUserAndHost(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
-		{"DATABASE_URL=postgres://app:" + "S3cretPassw0rd@db.internal:5432/app",
-			"DATABASE_URL=postgres://app:[REDACTED]@db.internal:5432/app"},
+		{
+			"DATABASE_URL=postgres://app:" + "S3cretPassw0rd@db.internal:5432/app",
+			"DATABASE_URL=postgres://app:[REDACTED]@db.internal:5432/app",
+		},
 		{"redis://:" + "hunter2pass@cache:6379/0", "redis://:[REDACTED]@cache:6379/0"},
 		{"postgres://app:p@ss@db/app", "postgres://app:[REDACTED]@db/app"},
 		// The user name has an @ in it.
-		{"postgres://user@myserver:" + "S3cretPassw0rd" + "@myserver.postgres.database.azure.com:5432/db",
-			"postgres://user@myserver:[REDACTED]@myserver.postgres.database.azure.com:5432/db"},
-		{"https://me@example.com:" + "ghtoken123456@git.example.com/repo.git",
-			"https://me@example.com:[REDACTED]@git.example.com/repo.git"},
+		{
+			"postgres://user@myserver:" + "S3cretPassw0rd" + "@myserver.postgres.database.azure.com:5432/db",
+			"postgres://user@myserver:[REDACTED]@myserver.postgres.database.azure.com:5432/db",
+		},
+		{
+			"https://me@example.com:" + "ghtoken123456@git.example.com/repo.git",
+			"https://me@example.com:[REDACTED]@git.example.com/repo.git",
+		},
 	} {
 		t.Run(c.in, func(t *testing.T) {
 			if got := Redact(c.in); got != c.want {
