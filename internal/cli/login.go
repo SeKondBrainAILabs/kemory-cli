@@ -74,7 +74,7 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	if err != nil {
 		var flow *auth.FlowError
 		var redirect *auth.RedirectError
-		if errors.As(err, &redirect) {
+		if errors.As(err, &flow) || errors.As(err, &redirect) {
 			return exits.New(fmt.Sprintf("%v\n\nThings to check:\n"+
 				"  • is %s reachable from this network?\n"+
 				"  • is the kemory-cli client enabled in your Keycloak realm?\n"+
