@@ -280,5 +280,5 @@ func DiscoverHomeCell(baseURL string, headers http.Header) string {
 			return n
 		}
 	}
-	return n
+	return ""
 }
