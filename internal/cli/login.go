@@ -107,7 +107,7 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 		render.Warn("⚠ Logged in and tokens cached, but kemory could not be reached to verify the session. Try `kemory whoami`.")
 		return nil
 	}
-	if resp.Status == 0 {
+	if resp.Status != 200 {
 		render.Warn(fmt.Sprintf("⚠ Logged in and tokens cached, but identity lookup failed (%d). Try `kemory whoami`.", resp.Status))
 		return nil
 	}
