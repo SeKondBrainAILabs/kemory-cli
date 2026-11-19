@@ -187,48 +187,6 @@ var HTTPClient = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
-// fetchCellDirectory returns region -> validated API host from
-// GET {base}/.well-known/kemory-cells, or nil on any failure. The directory
-// extends what this build knows; it never gates it.
-func fetchCellDirectory(baseURL string) map[string]string {
-	ctx, cancel := context.WithTimeout(context.Background(), HTTPClient.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/.well-known/kemory-cells", nil)
-	if err != nil {
-		return nil
-	}
-	resp, err := HTTPClient.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	var body struct {
-		Cells map[string]json.RawMessage `json:"cells"`
-	}
-	if json.NewDecoder(resp.Body).Decode(&body) != nil {
-		return nil
-	}
-	out := map[string]string{}
-	for region, raw := range body.Cells {
-		var hosts map[string]any
-		if json.Unmarshal(raw, &hosts) != nil {
-			continue
-		}
-		if api, ok := hosts["api"].(string); ok {
-			if n := normalize(api); n != "" {
-				out[region] = n
-			}
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
 // SelectionOverridesDiscovery reports whether DiscoverHomeCell's answer is
 // about the wrong org. Discovery answers for the token's org, so when the user
 // has selected a different org, acting on it would route to the wrong cell.
@@ -239,8 +197,8 @@ func SelectionOverridesDiscovery(activeOrgID, tokenOrgID string) bool {
 // DiscoverHomeCell asks GET {base}/api/v1/residency/cell where the token's org
 // lives. It returns a validated API host only when the server says this is not
 // the org's home cell, and "" for "stay put" (home cell, endpoint missing,
-// any failure). The host must be allowlisted or appear in the cell directory
-// served by the same base URL.
+// any failure). The host must be on the compiled-in allowlist: the answer
+// comes from the server being asked, so it is never trusted on its own.
 func DiscoverHomeCell(baseURL string, headers http.Header) string {
 	ctx, cancel := context.WithTimeout(context.Background(), HTTPClient.Timeout)
 	defer cancel()
@@ -274,11 +232,6 @@ func DiscoverHomeCell(baseURL string, headers http.Header) string {
 	}
 	if IsAllowedAPIURL(n) {
 		return n
-	}
-	for _, host := range fetchCellDirectory(baseURL) {
-		if host == n {
-			return n
-		}
 	}
 	return ""
 }

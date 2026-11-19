@@ -15,7 +15,7 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/residency"
 )
 
-const loginCellB = "https://cell-b.example.test"
+const loginCellB = "https://api.kemory.in.sekondbrain.ai"
 
 // loginIssuer is a fake identity provider that completes the device flow with
 // the access token "at".
@@ -111,7 +111,7 @@ func (c hostTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func routeCellB(t *testing.T, handler http.Handler) {
 	t.Helper()
-	routeHost(t, "cell-b.example.test", handler)
+	routeHost(t, "api.kemory.in.sekondbrain.ai", handler)
 }
 
 // routeHost serves host in-process with handler (nil: the host cannot be
@@ -144,9 +144,8 @@ func cellBHandler() http.Handler {
 }
 
 const (
-	loginCellBAnswer    = `{"is_home_cell": false, "cell_hosts": {"api": "` + loginCellB + `"}}`
-	loginCellBDirectory = `{"cells": {"b": {"api": "` + loginCellB + `"}}}`
-	loginRegionNotice   = "→ Your organisation's data lives in another region; using " + loginCellB + "."
+	loginCellBAnswer  = `{"is_home_cell": false, "cell_hosts": {"api": "` + loginCellB + `"}}`
+	loginRegionNotice = "→ Your organisation's data lives in another region; using " + loginCellB + "."
 )
 
 func loginAgainst(t *testing.T, issuerURL, apiURL string) (int, string, string) {
@@ -168,9 +167,9 @@ func savedCreds(t *testing.T) *config.Credentials {
 	return c
 }
 
-func TestLoginMovesToTheOrgsHomeCellListedInTheCellDirectory(t *testing.T) {
+func TestLoginMovesToTheOrgsAllowlistedHomeCell(t *testing.T) {
 	setHome(t)
-	first := newLoginFirstAPI(t, loginCellBAnswer, loginCellBDirectory, http.StatusOK)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
 	routeCellB(t, cellBHandler())
 
 	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
@@ -194,7 +193,7 @@ func TestLoginMovesToTheOrgsHomeCellListedInTheCellDirectory(t *testing.T) {
 
 func TestLoginSavesTheHomeCellEvenWhenItCannotBeReachedAfterwards(t *testing.T) {
 	setHome(t)
-	first := newLoginFirstAPI(t, loginCellBAnswer, loginCellBDirectory, http.StatusOK)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
 	routeCellB(t, nil)
 
 	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
