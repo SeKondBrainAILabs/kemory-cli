@@ -203,11 +203,15 @@ func roundTripOf(t *testing.T, kemoryURL string) checkResult {
 
 func wantRoundTrip(t *testing.T, got checkResult, status render.Status, detail string) {
 	t.Helper()
-	if got.Status != string(status) {
-		t.Fatalf("status = %q, want %q (detail %v)", got.Status, status, got.Detail)
+	gotDetail := "<nil>"
+	if got.Detail != nil {
+		gotDetail = *got.Detail
 	}
-	if got.Detail == nil || *got.Detail != detail {
-		t.Fatalf("detail = %v, want %q", got.Detail, detail)
+	if got.Status != string(status) {
+		t.Fatalf("status = %q, want %q (detail %q)", got.Status, status, gotDetail)
+	}
+	if got.Detail == nil || gotDetail != detail {
+		t.Fatalf("detail = %q, want %q", gotDetail, detail)
 	}
 }
 
