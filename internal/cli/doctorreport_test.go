@@ -121,20 +121,34 @@ func TestDoctorReportNamesTheLevelEachPluginOrConnectorGives(t *testing.T) {
 		wantLabel  string
 		wantDetail string
 	}{
-		{"mcp host: codex", render.Pass, "Kemory plugin for tools, hooks from kemory-cli (/x/.codex/hooks.json)",
-			"Codex", "automatic · Kemory plugin for tools, hooks from kemory-cli"},
-		{"mcp host: claude-desktop", render.Pass, "connected through the claude.ai connector",
-			"Claude chat (app, web, mobile)", "on demand · claude.ai connector"},
-		{"mcp host: claude-code", render.Pass, "connected through the Kemory plugin (/x/settings.json)",
-			"Claude Code (Code tab, terminal)", "automatic · Kemory plugin"},
-		{"mcp host: grok", render.Pass, "connected through the Kemory plugin (`grok plugin list`)",
-			"Grok", "on demand · Kemory plugin"},
-		{"mcp host: cursor", render.Pass, "removed kemory entry — cursor is not installed",
-			"Cursor", "removed kemory entry — cursor is not installed"},
-		{"mcp host: warp plugin", render.Skip, "no plugin for this client",
-			"Warp plugin", "no plugin for this client"},
-		{"mcp host: unknown-host", render.Pass, "/x/mcp.json",
-			"unknown-host", "on demand"},
+		{
+			"mcp host: codex", render.Pass, "Kemory plugin for tools, hooks from kemory-cli (/x/.codex/hooks.json)",
+			"Codex", "automatic · Kemory plugin for tools, hooks from kemory-cli",
+		},
+		{
+			"mcp host: claude-desktop", render.Pass, "connected through the claude.ai connector",
+			"Claude chat (app, web, mobile)", "on demand · claude.ai connector",
+		},
+		{
+			"mcp host: claude-code", render.Pass, "connected through the Kemory plugin (/x/settings.json)",
+			"Claude Code (Code tab, terminal)", "automatic · Kemory plugin",
+		},
+		{
+			"mcp host: grok", render.Pass, "connected through the Kemory plugin (`grok plugin list`)",
+			"Grok", "on demand · Kemory plugin",
+		},
+		{
+			"mcp host: cursor", render.Pass, "removed kemory entry — cursor is not installed",
+			"Cursor", "removed kemory entry — cursor is not installed",
+		},
+		{
+			"mcp host: warp plugin", render.Skip, "no plugin for this client",
+			"Warp plugin", "no plugin for this client",
+		},
+		{
+			"mcp host: unknown-host", render.Pass, "/x/mcp.json",
+			"unknown-host", "on demand",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.check, func(t *testing.T) {
