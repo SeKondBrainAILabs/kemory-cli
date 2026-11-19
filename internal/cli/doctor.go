@@ -594,7 +594,7 @@ func (d *doctor) checkFreshness() {
 
 func hostOf(raw string) string {
 	if u, err := url.Parse(raw); err == nil && u.Host != "" {
-		return u.Hostname()
+		return u.Host
 	}
 	return raw
 }
