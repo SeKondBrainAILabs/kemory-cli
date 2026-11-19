@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -117,6 +118,29 @@ func discoveryServer(t *testing.T, cellBody, directoryBody string) *httptest.Ser
 	}))
 }
 
+func TestDiscoverHomeCellNeverFetchesTheCellDirectory(t *testing.T) {
+	var directoryRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/residency/cell":
+			w.Write([]byte(`{"is_home_cell": false, "cell_hosts": {"api": "https://new.example.com"}}`))
+		case "/.well-known/kemory-cells":
+			directoryRequests.Add(1)
+			w.Write([]byte(`{"cells": {"new": {"api": "https://new.example.com"}}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	if got := DiscoverHomeCell(srv.URL, http.Header{}); got != "" {
+		t.Fatalf("got %q, want no move", got)
+	}
+	if n := directoryRequests.Load(); n != 0 {
+		t.Fatalf("discovery asked for the cell directory %d time(s), want 0", n)
+	}
+}
+
 func TestDiscoverHomeCell(t *testing.T) {
 	headers := http.Header{"Authorization": {"Bearer t"}}
 	cases := []struct {
@@ -125,7 +149,7 @@ func TestDiscoverHomeCell(t *testing.T) {
 		{"home cell", `{"is_home_cell": true}`, "", ""},
 		{"allowlisted other cell", `{"is_home_cell": false, "cell_hosts": {"api": "https://api.kemory.in.sekondbrain.ai"}}`, "", "https://api.kemory.in.sekondbrain.ai"},
 		{"unknown host", `{"is_home_cell": false, "cell_hosts": {"api": "https://new.example.com"}}`, "", ""},
-		{"host from the cell directory", `{"is_home_cell": false, "cell_hosts": {"api": "https://new.example.com"}}`, `{"cells": {"new": {"api": "https://new.example.com"}}}`, "https://new.example.com"},
+		{"host from the cell directory", `{"is_home_cell": false, "cell_hosts": {"api": "https://new.example.com"}}`, `{"cells": {"new": {"api": "https://new.example.com"}}}`, ""},
 		{"malformed", `{"is_home_cell": false, "cell_hosts": {"api": "http://api.kemory.in.sekondbrain.ai"}}`, "", ""},
 		{"missing flag", `{}`, "", ""},
 	}
