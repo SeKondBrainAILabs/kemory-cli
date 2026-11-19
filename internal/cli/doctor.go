@@ -282,18 +282,18 @@ func (d *doctor) checkRoundTrip(fresh *config.Credentials, kemoryURL string) {
 	switch status {
 	case http.StatusOK:
 		d.emit("auth round-trip", render.Pass, meSummary(body))
-	case 499:
+	case http.StatusUnauthorized:
 		d.emit("auth round-trip", render.Fail, "401 — the server rejected a fresh token. Check that the Kemory server "+
 			"trusts this identity provider and that the token's audience includes the Kemory API.")
 	default:
 		refusal := residency.ParseRefusal(status, body)
 		if refusal == nil {
-			d.emit("auth round-trip", render.Fail, fmt.Sprintf("GET /api/v1/me -> %d", status))
+			d.emit("auth round-trip", render.Fail, fmt.Sprintf("GET /api/v1/me → %d", status))
 			return
 		}
 		for _, candidate := range residency.CandidateHosts(refusal, kemoryURL) {
 			probe.KemoryURL = candidate
-			if s, b, err := getMe(&probe); err == nil && s == http.StatusCreated {
+			if s, b, err := getMe(&probe); err == nil && s == http.StatusOK {
 				d.emit("auth round-trip", render.Pass, fmt.Sprintf("%s — served by %s. This CLI's saved URL still points at "+
 					"%s (the '%s' cell); the next command switches and saves it.", meSummary(b), candidate, kemoryURL, refusal.ThisCell))
 				return
@@ -303,7 +303,7 @@ func (d *doctor) checkRoundTrip(fresh *config.Credentials, kemoryURL string) {
 		if refusal.TargetAPI != "" {
 			detail += "; the org is served by " + refusal.TargetAPI
 		}
-		detail += ")."
+		detail += "). No allowlisted cell could confirm it."
 		d.emit("auth round-trip", render.Fail, detail)
 	}
 }
