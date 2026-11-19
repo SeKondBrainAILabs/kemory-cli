@@ -619,7 +619,7 @@ func (d *doctor) report() {
 		label, _ := d.plain(c.Check, render.Skip, "")
 		width = max(width, len(label))
 	}
-	render.CheckLabelWidth = max(18, width)
+	render.CheckLabelWidth = max(18, 0)
 	for _, sec := range sections {
 		render.Echo("")
 		render.Echo(ui.Section(sec.title))
@@ -653,7 +653,7 @@ func (d *doctor) plain(check string, status render.Status, detail string) (strin
 		return "Kemory reachable", detail
 	case "token refresh":
 		if status == render.Pass {
-			detail = "works"
+			detail = "ok"
 		}
 		return "Session refresh", detail
 	case "auth round-trip":
@@ -676,10 +676,10 @@ func (d *doctor) plain(check string, status render.Status, detail string) (strin
 	host = strings.TrimSuffix(host, " plugin")
 	label := ui.Name(host)
 	if plugin {
-		label += " plugin"
+		label += ""
 	}
 	if status != render.Pass {
-		return label, detail
+		return label, ""
 	}
 	switch {
 	case strings.Contains(detail, "removed"):
@@ -687,7 +687,7 @@ func (d *doctor) plain(check string, status render.Status, detail string) (strin
 	case strings.Contains(detail, pluginWithHooks):
 		return label, levelFull + " · " + pluginWithHooks
 	case strings.Contains(detail, "claude.ai connector"):
-		return label, via(host, "connector")
+		return label, via(host, "plugin")
 	case strings.Contains(detail, "Kemory plugin"):
 		return label, via(host, "plugin")
 	case strings.Contains(detail, "automatic memory hooks"):
