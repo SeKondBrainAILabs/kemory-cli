@@ -165,7 +165,12 @@ func retarget(creds *config.Credentials, refusal *residency.Refusal, retried boo
 		return exits.New(residency.WrongRegionMessage(refusal, creds.KemoryURL)+
 			"\nYour configured URL was left untouched.", exits.Failure)
 	}
-	target := resolveCellTarget(creds, refusal)
+	target := residency.PickCell(refusal, current, func(host string) bool {
+		probe := *creds
+		probe.KemoryURL = host
+		resp, err := do(&probe, http.MethodGet, "/api/v1/me", nil, DefaultTimeout)
+		return err == nil && resp.Status == http.StatusOK
+	})
 	if target == "" || target == current {
 		return exits.New(residency.WrongRegionMessage(refusal, creds.KemoryURL), exits.Failure)
 	}
@@ -176,23 +181,6 @@ func retarget(creds *config.Credentials, refusal *residency.Refusal, retried boo
 	Notice(fmt.Sprintf("→ Your organisation's data lives in the %s cell; switched this CLI to %s (saved).",
 		residency.RegionFor(target), target))
 	return nil
-}
-
-// resolveCellTarget returns the org's cell: the validated server target, or
-// else the first other allowlisted cell that answers /api/v1/me with 200.
-func resolveCellTarget(creds *config.Credentials, refusal *residency.Refusal) string {
-	for _, candidate := range residency.CandidateHosts(refusal, creds.KemoryURL) {
-		if candidate == refusal.TargetAPI {
-			return candidate
-		}
-		probe := *creds
-		probe.KemoryURL = candidate
-		resp, err := do(&probe, http.MethodGet, "/api/v1/me", nil, DefaultTimeout)
-		if err == nil && resp.Status == http.StatusOK {
-			return candidate
-		}
-	}
-	return ""
 }
 
 // Get is Request with GET.

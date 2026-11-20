@@ -291,25 +291,57 @@ func (d *doctor) checkRoundTrip(fresh *config.Credentials, kemoryURL string) {
 			d.emit("auth round-trip", render.Fail, fmt.Sprintf("GET /api/v1/me → %d", status))
 			return
 		}
-		for _, candidate := range residency.CandidateHosts(refusal, kemoryURL) {
-			probe.KemoryURL = candidate
-			if s, b, err := getMe(&probe); err == nil && s == http.StatusOK {
-				d.emit("auth round-trip", render.Pass, fmt.Sprintf("%s — served by %s. This CLI's saved URL still points at "+
-					"%s (the '%s' cell); the next command switches and saves it.", meSummary(b), candidate, kemoryURL, refusal.ThisCell))
-				return
-			}
-		}
-		detail := fmt.Sprintf("403 — this org's data lives in a different residency cell (this CLI points at %s, the '%s' cell", kemoryURL, refusal.ThisCell)
-		if refusal.TargetAPI != "" {
-			detail += "; the org is served by " + refusal.TargetAPI
-		}
-		detail += "). No allowlisted cell could confirm it."
-		d.emit("auth round-trip", render.Fail, detail)
+		status, detail := recoveryVerdict(&probe, kemoryURL, refusal)
+		d.emit("auth round-trip", status, detail)
 	}
 }
 
+// recoveryVerdict reports what the next command would do after the wrong-cell
+// refusal, using the rule commands use (residency.PickCell), without writing
+// the credentials file. probe carries the identity; its URL is overwritten.
+func recoveryVerdict(probe *config.Credentials, kemoryURL string, refusal *residency.Refusal) (render.Status, string) {
+	detail := fmt.Sprintf("403 — this org's data lives in a different residency cell (this CLI points at %s, the '%s' cell", kemoryURL, refusal.ThisCell)
+	if refusal.TargetAPI != "" {
+		detail += "; the org is served by " + refusal.TargetAPI
+	}
+	if !residency.IsAllowedAPIURL(kemoryURL) {
+		// Commands leave a self-hosted URL alone, and the token must not go to Kemory's cells.
+		return render.Fail, detail + "). This URL is not a known Kemory cell, so commands leave it untouched."
+	}
+	// The rule trusts a named target without a probe, so it probes only
+	// fallback cells; keep the last answer to avoid asking the same cell twice.
+	var lastHost string
+	var lastStatus int
+	var lastBody []byte
+	var lastErr error
+	target := residency.PickCell(refusal, kemoryURL, func(host string) bool {
+		probe.KemoryURL = host
+		lastHost = host
+		lastStatus, lastBody, lastErr = getMe(probe)
+		return lastErr == nil && lastStatus == http.StatusOK
+	})
+	if target == "" {
+		return render.Fail, detail + "). No allowlisted cell could confirm it."
+	}
+	if lastHost != target {
+		probe.KemoryURL = target
+		lastStatus, lastBody, lastErr = getMe(probe)
+	}
+	if lastErr == nil && lastStatus == http.StatusOK {
+		return render.Pass, fmt.Sprintf("%s — served by %s. This CLI's saved URL still points at "+
+			"%s (the '%s' cell); the next command switches and saves it.", meSummary(lastBody), target, kemoryURL, refusal.ThisCell)
+	}
+	why := fmt.Sprintf("status %d", lastStatus)
+	if lastErr != nil {
+		why = lastErr.Error()
+	}
+	return render.Fail, fmt.Sprintf("403 — this org's data lives in a different residency cell (this CLI points at %s, the '%s' cell). "+
+		"The next command switches this CLI to %s and saves it, but %s did not answer GET /api/v1/me (%s).",
+		kemoryURL, refusal.ThisCell, target, target, why)
+}
+
 func getMe(creds *config.Credentials) (int, []byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), api.DefaultTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(creds.KemoryURL, "/")+"/api/v1/me", nil)
 	if err != nil {

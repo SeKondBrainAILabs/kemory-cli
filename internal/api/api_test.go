@@ -154,3 +154,21 @@ func TestFailMapsStatusToExitCode(t *testing.T) {
 		t.Fatalf("got %v (%d)", err, exits.Code(err))
 	}
 }
+
+func TestATargetThatDoesNotAnswerIsStillSavedAndTheRetryFails(t *testing.T) {
+	setHome(t)
+	route(t, hostRouter{"api.kemory.s9n.ai": func(*http.Request) (int, string) { return 403, refusal(mumbai) }})
+	c := creds(zurich)
+
+	_, err := Get(c, "/api/v1/me")
+
+	if err == nil || exits.Code(err) != exits.Network || !strings.Contains(err.Error(), "Cannot reach "+mumbai) {
+		t.Fatalf("want a network failure naming %s, got %v", mumbai, err)
+	}
+	if c.KemoryURL != mumbai {
+		t.Fatalf("creds.KemoryURL = %s, want %s", c.KemoryURL, mumbai)
+	}
+	if saved, _ := config.LoadCredentials("prod"); saved == nil || saved.KemoryURL != mumbai {
+		t.Fatalf("saved credentials = %+v, want kemory_url %s", saved, mumbai)
+	}
+}
