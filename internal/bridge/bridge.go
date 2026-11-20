@@ -442,14 +442,14 @@ func (b *Bridge) recoverResidency(refusal *residency.Refusal) string {
 		return ""
 	}
 	headers := b.headers()
-	for _, candidate := range residency.CandidateHosts(refusal, creds.KemoryURL) {
-		if candidate != refusal.TargetAPI && !b.answersMe(candidate, headers) {
-			continue
-		}
-		b.saveURL(candidate, "403 recovery")
-		return candidate
+	candidate := residency.PickCell(refusal, creds.KemoryURL, func(host string) bool {
+		return b.answersMe(host, headers)
+	})
+	if candidate == "" {
+		return ""
 	}
-	return ""
+	b.saveURL(candidate, "403 recovery")
+	return candidate
 }
 
 func (b *Bridge) answersMe(host string, headers http.Header) bool {

@@ -168,3 +168,36 @@ func TestDiscoverHomeCell(t *testing.T) {
 		t.Fatalf("a 401 must mean stay put, got %q", got)
 	}
 }
+
+func TestPickCell(t *testing.T) {
+	zurich, mumbai := KnownCellAPIHosts["zurich"], KnownCellAPIHosts["mumbai"]
+	tests := []struct {
+		name        string
+		refusal     *Refusal
+		current     string
+		answering   string // the only host answers reports true for
+		want        string
+		wantAnswers []string
+	}{
+		{"a named target is trusted without a probe", &Refusal{ThisCell: "zurich", TargetAPI: mumbai}, zurich, "", mumbai, nil},
+		{"without a target the other cell must answer", &Refusal{ThisCell: "zurich"}, zurich, mumbai, mumbai, []string{mumbai}},
+		{"nothing answers", &Refusal{ThisCell: "zurich"}, zurich, "", "", []string{mumbai}},
+		{"a self-hosted URL is never rewritten", &Refusal{ThisCell: "zurich", TargetAPI: mumbai}, "https://kemory.example.com", "", "", nil},
+		{"a trailing slash on the current URL does not matter", &Refusal{ThisCell: "zurich", TargetAPI: mumbai}, zurich + "/", "", mumbai, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked []string
+			got := PickCell(tt.refusal, tt.current, func(host string) bool {
+				asked = append(asked, host)
+				return host == tt.answering
+			})
+			if got != tt.want {
+				t.Fatalf("PickCell = %q, want %q", got, tt.want)
+			}
+			if strings.Join(asked, ",") != strings.Join(tt.wantAnswers, ",") {
+				t.Fatalf("answers called with %v, want %v", asked, tt.wantAnswers)
+			}
+		})
+	}
+}

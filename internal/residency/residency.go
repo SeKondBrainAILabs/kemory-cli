@@ -138,6 +138,28 @@ func CandidateHosts(r *Refusal, currentURL string) []string {
 	return out
 }
 
+// PickCell is the one rule for where to go after a wrong-cell refusal. It
+// returns "" when currentURL is not an allowlisted cell API host
+// (IsAllowedAPIURL), so a self-hosted URL is never rewritten. Otherwise it
+// walks CandidateHosts in order: a candidate equal to r.TargetAPI is returned
+// without calling answers, because the server named it and ParseRefusal
+// already checked it against the allowlist; any other candidate is returned
+// only if answers(candidate) is true. It returns "" when none qualifies.
+//
+// The caller supplies answers because each caller probes with its own
+// headers and HTTP client.
+func PickCell(r *Refusal, currentURL string, answers func(host string) bool) string {
+	if !IsAllowedAPIURL(currentURL) {
+		return ""
+	}
+	for _, candidate := range CandidateHosts(r, currentURL) {
+		if candidate == r.TargetAPI || answers(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
 func sortedRegions() []string {
 	regions := make([]string, 0, len(KnownCellAPIHosts))
 	for r := range KnownCellAPIHosts {
