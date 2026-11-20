@@ -58,6 +58,15 @@ Run `make check` before opening a pull request; CI runs the same checks on
 Linux, macOS and Windows. `make check` now also needs uv and Node, for
 `make lint-packaging`; `make lint` stays Go-only.
 
+**Restricted networks.** When the Go download and module hosts are unreachable
+(a network where only GitHub is reachable), use `scripts/go-restricted.sh` in
+place of `go`, for example `make test GO=scripts/go-restricted.sh`. It fetches
+Go and the modules from GitHub only, keeping its state in the git-ignored
+`.tools/` and leaving `go.mod` and `go.sum` alone. It covers build, vet and
+test, not `make lint`, `make vuln` or `make snapshot`, whose `go run
+tool@version` does not work with its module file. Mirror sources are not
+checked against `go.sum`, so use it for local work only.
+
 ### Tests
 
 Tests never touch a real Kemory account. Each test points `HOME` at a temporary
