@@ -23,6 +23,9 @@ To add an import the table forbids, change the table in the same PR.
 - `make test` runs `go test -race ./...`. `make check` runs hygiene, lint, test
   and vuln, which is what CI runs.
 - Run one package with `go test ./internal/<pkg>`.
+- When Go or its module hosts can't be reached (only GitHub is), use
+  `scripts/go-restricted.sh` in place of `go`: `make test GO=scripts/go-restricted.sh`.
+  Run tests with `KEMORY_URL` unset. It does not cover lint, vuln or snapshot.
 
 ## Tests
 
