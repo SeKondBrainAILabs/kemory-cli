@@ -222,3 +222,84 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+func sampleCredentials(env string) *Credentials {
+	return &Credentials{
+		AccessToken: "new-at", RefreshToken: "new-rt", ExpiresAt: 1792000000,
+		Issuer: "https://i", ClientID: "kemory-cli", KemoryURL: "https://k", Env: env,
+	}
+}
+
+func assertNoTempFiles(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestSaveFileFailsWhenTheParentDirectoryCannotBeCreated(t *testing.T) {
+	home := setHome(t)
+	blocker := filepath.Join(home, "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := sampleCredentials("prod").SaveFile(filepath.Join(blocker, "sub", "credentials-prod")); err == nil {
+		t.Fatal("SaveFile succeeded although its parent path is a regular file")
+	}
+	if got := mustRead(t, blocker); got != "not a directory" {
+		t.Fatalf("blocking file changed: %q", got)
+	}
+	assertNoTempFiles(t, home)
+}
+
+func TestSaveFileKeepsTheExistingFileWhenTheDirectoryIsReadOnly(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("directory permissions do not stop writes on Windows or for root")
+	}
+	setHome(t)
+	path := write(t, pythonWritten)
+	dir := filepath.Dir(path)
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	if err := sampleCredentials("prod").SaveFile(path); err == nil {
+		t.Fatal("SaveFile succeeded in a read-only directory")
+	}
+	if got := mustRead(t, path); got != pythonWritten {
+		t.Fatalf("existing credentials changed:\n%s", got)
+	}
+	assertNoTempFiles(t, dir)
+}
+
+func TestSaveFileKeepsTheTargetAndLeavesNoTempFileWhenTheRenameFails(t *testing.T) {
+	setHome(t)
+	path, err := CredentialsPath("prod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A non-empty directory at the target makes the final rename fail on
+	// every OS, after the temp file was fully written.
+	keep := filepath.Join(path, "keep")
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keep, []byte("untouched"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sampleCredentials("prod").SaveFile(path); err == nil {
+		t.Fatal("SaveFile succeeded although the target is a directory")
+	}
+	if got := mustRead(t, keep); got != "untouched" {
+		t.Fatalf("target directory changed: %q", got)
+	}
+	assertNoTempFiles(t, filepath.Dir(path))
+}
