@@ -249,3 +249,133 @@ func TestEntryCommandReadsEachConfigShape(t *testing.T) {
 		})
 	}
 }
+
+func TestWriteEntryKeepsASymlinkedConfigALink(t *testing.T) {
+	cases := []struct {
+		name, host string
+		link       func() string
+		target     string // relative to the home directory
+		relative   bool
+		before     string
+		keep       string // text that must survive in the target
+	}{
+		{
+			"cursor, absolute link", "cursor",
+			func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			"dotfiles/cursor/mcp.json", false,
+			`{"mcpServers": {"other": {"command": "x"}}}`,
+			`"other"`,
+		},
+		{
+			"cursor, relative link", "cursor",
+			func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			"dotfiles/cursor/mcp.json", true,
+			`{"mcpServers": {"other": {"command": "x"}}}`,
+			`"other"`,
+		},
+		{
+			"codex, toml", "codex",
+			func() string { return filepath.Join(home(), ".codex", "config.toml") },
+			"dotfiles/codex/config.toml", false,
+			"model = \"gpt\"\n",
+			`model = "gpt"`,
+		},
+		{
+			"zed, jsonc", "zed",
+			func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
+			"dotfiles/zed/settings.json", false,
+			"// my theme\n{\"theme\": \"One\"}\n",
+			`// my theme`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := setHome(t)
+			target := filepath.Join(dir, filepath.FromSlash(c.target))
+			mustWrite(t, target, c.before)
+			link := c.link()
+			if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			linkTarget := target
+			if c.relative {
+				rel, err := filepath.Rel(filepath.Dir(link), target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				linkTarget = rel
+			}
+			if err := os.Symlink(linkTarget, link); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+
+			if err := WriteEntry(c.host, link, "kemory", LaunchFor("prod")); err != nil {
+				t.Fatal(err)
+			}
+
+			info, err := os.Lstat(link)
+			if err != nil || info.Mode()&os.ModeSymlink == 0 {
+				t.Fatalf("the link was replaced: %v, %v", info, err)
+			}
+			if got, err := os.Readlink(link); err != nil || got != linkTarget {
+				t.Fatalf("link now points at %q (%v), want %q", got, err, linkTarget)
+			}
+			data, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s := string(data); !strings.Contains(s, "kemory") || !strings.Contains(s, c.keep) {
+				t.Fatalf("target after the write:\n%s", s)
+			}
+			for _, d := range []string{filepath.Dir(link), filepath.Dir(target)} {
+				if tmps, _ := filepath.Glob(filepath.Join(d, ".*.tmp")); len(tmps) != 0 {
+					t.Fatalf("temp files left behind: %v", tmps)
+				}
+			}
+		})
+	}
+}
+
+func TestWriteEntryKeepsTheModeOfASymlinkedTarget(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on windows")
+	}
+	dir := setHome(t)
+	target := filepath.Join(dir, "dotfiles", "mcp.json")
+	mustWrite(t, target, "{}") // mustWrite creates it 0600
+	link := filepath.Join(dir, ".cursor", "mcp.json")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := WriteEntry("cursor", link, "kemory", LaunchFor("prod")); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(target); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("target mode: %v, %v", info, err)
+	}
+}
+
+func TestWriteEntryRefusesADanglingSymlink(t *testing.T) {
+	dir := setHome(t)
+	target := filepath.Join(dir, "dotfiles", "cursor", "mcp.json")
+	link := filepath.Join(dir, ".cursor", "mcp.json")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	err := WriteEntry("cursor", link, "kemory", LaunchFor("prod"))
+	if err == nil || !strings.Contains(err.Error(), link) {
+		t.Fatalf("want an error naming %s, got %v", link, err)
+	}
+	if got, rerr := os.Readlink(link); rerr != nil || got != target {
+		t.Fatalf("link changed: %q, %v", got, rerr)
+	}
+	if _, serr := os.Stat(target); !os.IsNotExist(serr) {
+		t.Fatalf("the target was created: %v", serr)
+	}
+}
