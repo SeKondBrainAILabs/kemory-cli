@@ -278,10 +278,16 @@ jobs:
         run: |
           set -euo pipefail
           want="$(jq -r .name server.json)"
-          for _ in $(seq 1 12); do
+          got=""
+          # npm can take over 2 minutes to serve a new version: wait up to 11 minutes,
+          # with a delay that doubles from 10 s and is capped at 60 s.
+          deadline=$((SECONDS + 660))
+          delay=10
+          while [ "$SECONDS" -lt "$deadline" ]; do
             got="$(curl -fsS "https://registry.npmjs.org/kemory/$VERSION" | jq -r '.mcpName // empty' || true)"
             if [ "$got" = "$want" ]; then exit 0; fi
-            sleep 10
+            sleep "$delay"
+            delay=$((delay * 2 > 60 ? 60 : delay * 2))
           done
           echo "::error::kemory@$VERSION on npm has mcpName '$got', want '$want'"
           exit 1
