@@ -32,6 +32,11 @@ func TestUnknownEnvNamesTheChoices(t *testing.T) {
 
 func TestExtraEnvironmentsComeFromTheEnvironmentsFile(t *testing.T) {
 	home := setHome(t)
+	// EnvProfile applies these overrides, so a value inherited from the
+	// caller's shell would change the profiles asserted below.
+	for _, name := range []string{"KEMORY_ENVIRONMENTS_FILE", "KEMORY_ENV", "KEMORY_OIDC_ISSUER", "KEMORY_URL", "KEMORY_CLI_CLIENT_ID", "KEMORY_DASHBOARD_URL"} {
+		t.Setenv(name, "")
+	}
 	path := filepath.Join(home, ".kemory", "environments.json")
 	os.MkdirAll(filepath.Dir(path), 0o700)
 	os.WriteFile(path, []byte(`{"staging": {"issuer": "https://i", "kemory_url": "https://k", "server_name": "kemory-staging"},
