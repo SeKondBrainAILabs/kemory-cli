@@ -51,11 +51,14 @@ const (
 // backslash before each quote. Names that end in "key" match too:
 // SECRET...KEY (up to 24 characters between, so AWS_SECRET_ACCESS_KEY),
 // PRIVATE_KEY, ACCESS_KEY and ACCOUNT_KEY. `secret` alone still needs the
-// assignment, so "the secret key is stored in vault" is prose.
+// assignment, so "the secret key is stored in vault" is prose. The assignment
+// is ':', '=' or '=>' (PHP arrays, Ruby hashes, Perl's fat comma). A
+// JavaScript arrow function whose parameter is a keyword (`token => token.trim()`)
+// is redacted too: a missed password is worse.
 var secret = regexp.MustCompile(`(?i)(bearer[` + wsClass + `]+[` + wordClass + `\-.]{8,}` +
 	`|(?:api[_-]?key|api[_-]?token|access[_-]?token|auth[_-]?token|token` +
 	`|secret[a-z0-9_-]{0,24}?key|private[_-]?key|access[_-]?key|account[_-]?key` +
-	`|secret|password|passwd|pwd)\\?["']?[` + wsClass + `]*[:=][` + wsClass + `]*\\?["']?[^` + wsClass + `"',;}]{6,}` +
+	`|secret|password|passwd|pwd)\\?["']?[` + wsClass + `]*[:=]>?[` + wsClass + `]*\\?["']?[^` + wsClass + `"',;}]{6,}` +
 	`|sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}` +
 	`|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}` +
 	`|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})`)
