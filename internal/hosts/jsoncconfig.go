@@ -380,15 +380,20 @@ func removeJSONCEntries(path, key string, names []string) (string, error) {
 	for _, n := range names {
 		drop[n] = true
 	}
-	// From the last member back, so earlier positions stay valid.
+	// From the last member back, so earlier positions stay valid. cut is where
+	// the previous cut began: a tail cut starts on the comma inside the earlier
+	// member's range, so that member's end is clamped to it. tail stays true
+	// while every later member is dropped too.
+	cut, tail := len(text), true
 	for i := len(members) - 1; i >= 0; i-- {
 		m := members[i]
 		if !drop[m.name] {
+			tail = false
 			continue
 		}
-		start, end := m.start, m.end
-		if end == m.valueEnd {
-			// The last member: take the comma before it instead.
+		start, end := m.start, min(m.end, cut)
+		if tail {
+			// A trailing run of dropped members: each takes the comma before it instead.
 			j := start - 1
 			for j >= 0 && strings.ContainsRune(" \t\r\n", rune(text[j])) {
 				j--
@@ -405,6 +410,7 @@ func removeJSONCEntries(path, key string, names []string) (string, error) {
 			start--
 		}
 		text = text[:start] + text[end:]
+		cut = start
 	}
 
 	after, err := decodeJSONC(text)
