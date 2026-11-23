@@ -245,3 +245,43 @@ func TestRefreshWithoutExpiresInSavesAboutFiveMinutes(t *testing.T) {
 		t.Fatalf("ExpiresAt = %v, want within [%v, %v] (now+300s)", saved.ExpiresAt, lo, hi)
 	}
 }
+
+func TestPollForTokenFailuresAreFlowErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		reply   [2]string
+		closed  bool
+		expires int
+		want    string
+	}{
+		{name: "closed server", closed: true, expires: 600, want: "device flow token request failed:"},
+		{name: "200 with a non-JSON body", reply: [2]string{"200", "<html>welcome</html>"}, expires: 600, want: "token response is not JSON:"},
+		{name: "unknown error code", reply: [2]string{"400", `{"error": "teapot"}`}, expires: 600, want: `device flow unexpected response: 400 {"error": "teapot"}`},
+		{name: "non-JSON error body", reply: [2]string{"500", "upstream down"}, expires: 600, want: "device flow unexpected response: 400 upstream down"},
+		{name: "expired_token from the issuer", reply: [2]string{"400", `{"error": "expired_token", "error_description": "too late"}`}, expires: 600, want: "device flow expired_token: too late"},
+		{name: "deadline passes while pending", reply: [2]string{"400", `{"error": "authorization_pending"}`}, expires: 1, want: "device code expired before approval"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setHome(t)
+			old := Sleep
+			Sleep = func(time.Duration) { time.Sleep(1100 * time.Millisecond) }
+			t.Cleanup(func() { Sleep = old })
+			srv := httptest.NewServer(&fakeIssuer{replies: [][2]string{tt.reply}})
+			if tt.closed {
+				srv.Close()
+			} else {
+				defer srv.Close()
+			}
+			dc := &DeviceCode{DeviceCode: "dc", ExpiresIn: tt.expires, Interval: 1}
+			tok, err := PollForToken(srv.URL, "kemory-cli", dc, "")
+			var flow *FlowError
+			if !errors.As(err, &flow) || tok != nil {
+				t.Fatalf("want FlowError and no token, got %v, %v", tok, err)
+			}
+			if !strings.Contains(flow.Message, tt.want) {
+				t.Fatalf("message %q does not contain %q", flow.Message, tt.want)
+			}
+		})
+	}
+}
