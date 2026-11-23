@@ -9,6 +9,7 @@ import (
 
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/api"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/auth"
+	"github.com/SeKondBrainAILabs/kemory-cli/internal/bridge"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/releases"
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/residency"
 )
@@ -27,7 +28,7 @@ func (l loopbackOnly) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func TestMain(m *testing.M) {
 	guard := loopbackOnly{next: http.DefaultTransport}
-	for _, c := range []*http.Client{api.HTTPClient, auth.HTTPClient, residency.HTTPClient, releases.HTTPClient, HealthClient} {
+	for _, c := range []*http.Client{api.HTTPClient, auth.HTTPClient, bridge.HTTPClient, residency.HTTPClient, releases.HTTPClient, HealthClient} {
 		c.Transport = guard
 	}
 	os.Exit(m.Run())
@@ -41,4 +42,23 @@ func TestTheLoopbackGuardRefusesRealHosts(t *testing.T) {
 	}()
 	req, _ := http.NewRequest(http.MethodGet, "https://api.kemory.s9n.ai/health/live", nil)
 	_, _ = loopbackOnly{next: http.DefaultTransport}.RoundTrip(req)
+}
+
+func TestEveryClientIsGuarded(t *testing.T) {
+	clients := []struct {
+		name   string
+		client *http.Client
+	}{
+		{"api.HTTPClient", api.HTTPClient},
+		{"auth.HTTPClient", auth.HTTPClient},
+		{"bridge.HTTPClient", bridge.HTTPClient},
+		{"residency.HTTPClient", residency.HTTPClient},
+		{"releases.HTTPClient", releases.HTTPClient},
+		{"HealthClient", HealthClient},
+	}
+	for _, tc := range clients {
+		if _, ok := tc.client.Transport.(loopbackOnly); !ok {
+			t.Errorf("%s.Transport is %T, want loopbackOnly", tc.name, tc.client.Transport)
+		}
+	}
 }
