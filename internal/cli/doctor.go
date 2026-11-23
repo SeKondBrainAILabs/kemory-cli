@@ -140,22 +140,7 @@ func (d *doctor) run() error {
 	if render.Styled() {
 		d.report()
 		render.Echo("")
-		count := map[string]int{}
-		for _, c := range d.checks {
-			count[c.Status]++
-		}
-		if fixHint {
-			render.Echo(ui.Step("Run " + ui.Bold("kemory doctor --fix") + " to connect every installed client and clean up the rest"))
-		}
-		// The verdict, not a count: whether anything needs the user.
-		switch failed, skipped := count[string(render.Fail)], count[string(render.Skip)]; {
-		case failed > 0:
-			render.Echo(ui.Failed(fmt.Sprintf("%d problem%s: each ✗ above says what to do", failed, plural(failed))))
-		case skipped > 0:
-			render.Echo(ui.Done("Everything works" + ui.Dim(fmt.Sprintf(" · %d check%s skipped", skipped, plural(skipped)))))
-		default:
-			render.Echo(ui.Done("Everything works"))
-		}
+		d.verdict(fixHint)
 		render.Echo("")
 		return nil
 	}
@@ -166,6 +151,27 @@ func (d *doctor) run() error {
 	}
 	render.Muted("Done. If a check failed, the hint after FAIL tells you what to do.")
 	return nil
+}
+
+// verdict prints the styled closing lines: the --fix hint when it applies,
+// then whether anything needs the user.
+func (d *doctor) verdict(fixHint bool) {
+	count := map[string]int{}
+	for _, c := range d.checks {
+		count[c.Status]++
+	}
+	if fixHint {
+		render.Echo(ui.Step("Run " + ui.Bold("kemory doctor --fix") + " to connect every installed client and clean up the rest"))
+	}
+	// The verdict, not a count: whether anything needs the user.
+	switch failed, skipped := count[string(render.Fail)], count[string(render.Skip)]; {
+	case failed > 0:
+		render.Echo(ui.Failed(fmt.Sprintf("%d problem%s: each ✗ above says what to do", failed, plural(failed))))
+	case skipped > 0:
+		render.Echo(ui.Done("Everything works" + ui.Dim(fmt.Sprintf(" · %d check%s skipped", skipped, plural(skipped)))))
+	default:
+		render.Echo(ui.Done("Everything works"))
+	}
 }
 
 func (d *doctor) checkCredentials(creds *config.Credentials) {
