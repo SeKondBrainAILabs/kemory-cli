@@ -91,6 +91,19 @@ func TestRedactRemovesSecretShapes(t *testing.T) {
 		cases = append(cases, secretCase{"quoted key " + c.in, c.in, []string{c.value}})
 	}
 
+	// '=>' assigns in PHP arrays, Ruby hashes (symbol and string keys, and
+	// Hash#inspect output with no spaces) and Perl's fat comma. The last line
+	// is JSON-escaped text.
+	for _, c := range []struct{ in, value string }{
+		{`$db = ['password' => 'Tr0ub4dor-and-3'];`, "Tr0ub4dor-and-3"},
+		{`{ :api_key => "kmy_live_9f8e7d6c5b4a3210" }`, "kmy_live_9f8e7d6c5b4a3210"},
+		{`{"access_token"=>"q8Zr2LmN0pX4vB7cW1"}`, "q8Zr2LmN0pX4vB7cW1"},
+		{"password => hunter2supersecret", "hunter2supersecret"},
+		{`{\"secret\" => \"q8Zr2LmN0pX4vB7cW1\"}`, "q8Zr2LmN0pX4vB7cW1"},
+	} {
+		cases = append(cases, secretCase{"fat arrow " + c.in, c.in, []string{c.value}})
+	}
+
 	// Environment-style names that end in KEY, and passwords in URLs.
 	for _, c := range []struct{ in, value string }{
 		{"export AWS_SECRET_ACCESS_KEY=" + awsSecret, awsSecret},
