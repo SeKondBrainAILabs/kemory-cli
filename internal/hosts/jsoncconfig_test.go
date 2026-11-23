@@ -151,3 +151,55 @@ func writeTestFile(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestZedRemovingTheLastServerKeepsAFileWithOtherSettings(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("zed")
+	writeTestFile(t, path, `{
+  "theme": "One Dark",
+  "context_servers": {
+    "kemory": { "command": "kemory" }
+  }
+}`)
+	if err := RemoveEntries("zed", path, []string{"kemory"}); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, path)
+	if !strings.Contains(got, `"theme": "One Dark"`) || strings.Contains(got, "kemory") {
+		t.Fatalf("after remove:\n%s", got)
+	}
+}
+
+func TestZedRemovingTheLastServerKeepsAFileWithOnlyAComment(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("zed")
+	writeTestFile(t, path, `// my notes
+{
+  "context_servers": {
+    "kemory": { "command": "kemory" }
+  }
+}`)
+	if err := RemoveEntries("zed", path, []string{"kemory"}); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, path)
+	if !strings.Contains(got, "// my notes") || strings.Contains(got, "kemory") {
+		t.Fatalf("after remove:\n%s", got)
+	}
+}
+
+func TestZedRemovingTheLastServerDeletesAFileThatHeldOnlyIt(t *testing.T) {
+	setHome(t)
+	path := ResolveConfig("zed")
+	writeTestFile(t, path, `{
+  "context_servers": {
+    "kemory": { "command": "kemory" }
+  }
+}`)
+	if err := RemoveEntries("zed", path, []string{"kemory"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("file still there: %v", err)
+	}
+}
