@@ -257,12 +257,18 @@ func TestRemoveEntriesEmptiesASymlinkedTarget(t *testing.T) {
 		content    string
 		want       string
 	}{
-		{"cursor json", "cursor", func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
-			`{"mcpServers": {"kemory": {"command": "npx"}}}`, "{}\n"},
-		{"codex toml", "codex", func() string { return filepath.Join(home(), ".codex", "config.toml") },
-			"[mcp_servers.kemory]\ncommand = \"npx\"\n", ""},
-		{"zed jsonc", "zed", func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
-			`{"context_servers": {"kemory": {"command": "npx"}}}`, "{}\n"},
+		{
+			"cursor json", "cursor", func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			`{"mcpServers": {"kemory": {"command": "npx"}}}`, "{}\n",
+		},
+		{
+			"codex toml", "codex", func() string { return filepath.Join(home(), ".codex", "config.toml") },
+			"[mcp_servers.kemory]\ncommand = \"npx\"\n", "",
+		},
+		{
+			"zed jsonc", "zed", func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
+			`{"context_servers": {"kemory": {"command": "npx"}}}`, "{}\n",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
