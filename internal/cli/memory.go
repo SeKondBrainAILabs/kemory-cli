@@ -709,7 +709,13 @@ func newExportCmd(g *globals) *cobra.Command {
 // exportToFile streams the export into a temp file beside out and renames it
 // over out only on success, so a failed export never touches an existing out.
 func exportToFile(creds *config.Credentials, path, out string) (int64, error) {
-	tmp, err := os.CreateTemp(filepath.Dir(out), "."+filepath.Base(out)+".*.tmp")
+	// Write through a symlinked out: renaming over the link would replace it
+	// with a plain file. A missing out can't resolve, so it is used as given.
+	dest := out
+	if resolved, err := filepath.EvalSymlinks(out); err == nil {
+		dest = resolved
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dest), "."+filepath.Base(dest)+".*.tmp")
 	if err != nil {
 		return 0, exits.New(fmt.Sprintf("cannot write %s: %v", out, err), exits.Failure)
 	}
@@ -718,7 +724,7 @@ func exportToFile(creds *config.Credentials, path, out string) (int64, error) {
 	// CreateTemp makes 0600: keep the old file's mode, else 0644 (os.Create's
 	// 0666 minus umask is not portable to compute).
 	mode := os.FileMode(0o644)
-	if info, statErr := os.Stat(out); statErr == nil {
+	if info, statErr := os.Stat(dest); statErr == nil {
 		mode = info.Mode().Perm()
 	}
 	if err := tmp.Chmod(mode); err != nil && !errors.Is(err, errors.ErrUnsupported) {
@@ -732,7 +738,7 @@ func exportToFile(creds *config.Credentials, path, out string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := os.Rename(tmpName, out); err != nil {
+	if err := os.Rename(tmpName, dest); err != nil {
 		return 0, exits.New(fmt.Sprintf("cannot write %s: %v", out, err), exits.Failure)
 	}
 	return n, nil
