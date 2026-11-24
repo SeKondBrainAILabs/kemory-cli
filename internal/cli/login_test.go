@@ -558,7 +558,7 @@ func TestReloginDropsASelectionTheOrgRefuses(t *testing.T) {
 // crossCells serves the zurich and mumbai hosts in-process. The sign-in org
 // org-1 lives on mumbai and the selected org org-2 on zurich. zurichMe
 // decides how zurich answers /me with org-2 selected.
-func crossCells(t *testing.T, zurichWithOrg2 func() (int, string)) (zurich, mumbai *reloginCell) {
+func crossCells(t *testing.T, zurichWithOrg2 func() (int, string)) (zurich *reloginCell) {
 	t.Helper()
 	zurich = &reloginCell{orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo, me: func(org string) (int, string) {
 		if org == "org-2" {
@@ -566,7 +566,7 @@ func crossCells(t *testing.T, zurichWithOrg2 func() (int, string)) (zurich, mumb
 		}
 		return http.StatusForbidden, refusalNaming(mumbaiAPI)
 	}}
-	mumbai = &reloginCell{orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo, me: func(org string) (int, string) {
+	mumbai := &reloginCell{orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo, me: func(org string) (int, string) {
 		if org == "org-2" {
 			return http.StatusForbidden, refusalNaming(zurichAPI)
 		}
@@ -574,12 +574,12 @@ func crossCells(t *testing.T, zurichWithOrg2 func() (int, string)) (zurich, mumb
 	}}
 	routeHost(t, "api.kemory.s9n.ai", zurich)
 	routeHost(t, "api.kemory.in.sekondbrain.ai", mumbai)
-	return zurich, mumbai
+	return zurich
 }
 
 func TestReloginFollowsTheSelectedOrgToItsCell(t *testing.T) {
 	setHome(t)
-	zurich, _ := crossCells(t, func() (int, string) { return http.StatusOK, meBody })
+	zurich := crossCells(t, func() (int, string) { return http.StatusOK, meBody })
 	saveEarlierLogin(t, zurichAPI, "org-1", "org-2")
 
 	out, _ := mustLogin(t, zurichAPI)
