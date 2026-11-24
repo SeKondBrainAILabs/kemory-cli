@@ -129,7 +129,7 @@ func TestRecallOutageWithoutRetryAfter(t *testing.T) {
 		searchPath: func(w http.ResponseWriter) { w.WriteHeader(http.StatusServiceUnavailable) },
 	})
 	code, _, errOut := run(t, "recall", "x")
-	want := "Search is temporarily unavailable for an encrypted vault (a dependency is down). Retry in a fews — this is not an empty result."
+	want := "Search is temporarily unavailable for an encrypted vault (a dependency is down). Retry in a few seconds — this is not an empty result."
 	if code != exits.Unavailable || !strings.Contains(errOut, want) {
 		t.Fatalf("got %d %q", code, errOut)
 	}

@@ -326,9 +326,12 @@ func search(g *globals, o searchOptions, query, mode string, minRelevance *float
 		// An encrypted vault matches only through the semantic path; the
 		// server says so instead of returning an empty page that reads as
 		// "you have nothing like that".
-		retry := orDefault(resp.Header.Get("Retry-After"), "a few ")
+		wait := "a few seconds"
+		if v := strings.TrimSpace(resp.Header.Get("Retry-After")); v != "" {
+			wait = v + "s"
+		}
 		return exits.New(fmt.Sprintf("Search is temporarily unavailable for an encrypted vault (a dependency is down). "+
-			"Retry in %ss — this is not an empty result.", strings.TrimSpace(retry)), exits.Unavailable)
+			"Retry in %s — this is not an empty result.", wait), exits.Unavailable)
 	}
 	if resp.Status != 200 {
 		return api.Fail(resp, "POST /api/v1/memories/search")
