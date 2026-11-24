@@ -136,11 +136,12 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	// otherwise leave the choice to `kemory use <org>`.
 	orgs := fetchOrgs(creds)
 	if carriedActive != "" {
-		if hasOrg(orgs, carriedActive) {
+		switch {
+		case hasOrg(orgs, carriedActive):
 			creds.ActiveOrgID = carriedActive
-		} else if orgs != nil {
+		case orgs != nil:
 			render.Warn(fmt.Sprintf("⚠ Org %s is not one of this sign-in's orgs; selection cleared. Run `kemory use <org>` to pick one.", carriedActive))
-		} else {
+		default:
 			render.Warn(fmt.Sprintf("⚠ Could not confirm org %s for this sign-in; selection cleared. Run `kemory use <org>` to pick it again.", carriedActive))
 		}
 	}
