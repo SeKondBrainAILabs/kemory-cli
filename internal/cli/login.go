@@ -64,6 +64,13 @@ func loginLocal(g *globals) error {
 
 func loginDeviceFlow(g *globals, openBrowser bool) error {
 	p := g.profile
+	// auth.Login overwrites the credentials file, so read the earlier
+	// selection first. It is only remembered here, never put on creds before
+	// the new sign-in has listed its orgs.
+	var carriedActive, carriedOrg string
+	if prev, perr := config.LoadCredentials(g.env); perr == nil && prev != nil && !prev.IsLocal() && prev.ActiveOrgID != "" {
+		carriedActive, carriedOrg = prev.ActiveOrgID, prev.OrgID
+	}
 	var creds *config.Credentials
 	var err error
 	if g.screen != nil {
@@ -86,8 +93,11 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	// Ask where the org's data lives before the first real request, so a
 	// cross-cell login is corrected up front. "" means stay put; the 403
 	// recovery in the API layer still covers every case. Discovery answers for
-	// the token's org, so it is skipped when another org is selected.
-	if !residency.SelectionOverridesDiscovery(creds.ActiveOrgID, creds.OrgID) {
+	// the token's org, so it is skipped when another org is selected. The guard
+	// uses the previous login's selection and sign-in org; the selection is
+	// confirmed after /me/orgs, and the confirm call below sets the selected
+	// org's cell.
+	if !residency.SelectionOverridesDiscovery(carriedActive, carriedOrg) {
 		if home := residency.DiscoverHomeCell(creds.KemoryURL, api.Headers(creds)); home != "" {
 			creds.KemoryURL = home
 			if err := creds.Save(); err != nil {
@@ -125,8 +135,20 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	// Select the org automatically when the user belongs to exactly one;
 	// otherwise leave the choice to `kemory use <org>`.
 	orgs := fetchOrgs(creds)
+	if carriedActive != "" {
+		if hasOrg(orgs, carriedActive) {
+			creds.ActiveOrgID = carriedActive
+		} else if orgs != nil {
+			render.Warn(fmt.Sprintf("⚠ Org %s is not one of this sign-in's orgs; selection cleared. Run `kemory use <org>` to pick one.", carriedActive))
+		} else {
+			render.Warn(fmt.Sprintf("⚠ Could not confirm org %s for this sign-in; selection cleared. Run `kemory use <org>` to pick it again.", carriedActive))
+		}
+	}
 	if len(orgs) == 1 {
 		creds.ActiveOrgID = orgs[0].OrgID
+	}
+	if carriedActive != "" && creds.ActiveOrgID == carriedActive && carriedActive != creds.OrgID {
+		confirmSelectedOrg(creds, carriedActive)
 	}
 	if err := creds.Save(); err != nil {
 		return err
@@ -145,6 +167,34 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 		render.Echo(fmt.Sprintf("  You belong to %d orgs — run `kemory orgs` to list, `kemory use <org_id>` to switch.", len(orgs)))
 	}
 	return nil
+}
+
+// confirmSelectedOrg sends one /me with the selected org, so the API layer's
+// residency recovery moves creds to that org's cell. When the org refuses or
+// no cell answers, the selection is cleared and the cell from before the call
+// is restored: the recovery may already have saved the new URL.
+func confirmSelectedOrg(creds *config.Credentials, org string) {
+	urlBefore := creds.KemoryURL
+	resp, err := api.Get(creds, "/api/v1/me")
+	if err == nil && resp.Status == 200 {
+		return
+	}
+	reason := "its region could not be reached"
+	if err == nil {
+		reason = fmt.Sprint(resp.Status)
+	}
+	creds.ActiveOrgID = ""
+	creds.KemoryURL = urlBefore
+	render.Warn(fmt.Sprintf("⚠ Could not use org %s after sign-in (%s); selection cleared. Run `kemory use <org>` to pick it again.", org, reason))
+}
+
+func hasOrg(orgs []orgMembership, id string) bool {
+	for _, o := range orgs {
+		if o.OrgID == id {
+			return true
+		}
+	}
+	return false
 }
 
 type orgMembership struct {
