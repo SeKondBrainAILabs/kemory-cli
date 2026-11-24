@@ -302,3 +302,308 @@ func TestLoginWarnsWhenTheIdentityLookupFails(t *testing.T) {
 		t.Errorf("saved access_token=%q email=%q, want \"at\" and empty", c.AccessToken, c.Email)
 	}
 }
+
+// reloginCell is one fake API host for the re-login tests. It records every
+// request's path and X-Organization-ID, checks the bearer token, answers
+// /me through me (which sees the header), /me/orgs with a fixed status and
+// body, and the residency question with loginCellBAnswer.
+type reloginCell struct {
+	me         func(org string) (int, string)
+	orgsStatus int
+	orgsBody   string
+
+	mu   sync.Mutex
+	reqs []reloginReq
+}
+
+type reloginReq struct{ path, org string }
+
+func okMe(string) (int, string) { return http.StatusOK, meBody }
+
+const orgsOneAndTwo = `[{"org_id": "org-1", "name": "Acme"}, {"org_id": "org-2", "name": "Beta"}]`
+
+func (c *reloginCell) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	org := r.Header.Get("X-Organization-ID")
+	c.mu.Lock()
+	c.reqs = append(c.reqs, reloginReq{r.URL.Path, org})
+	c.mu.Unlock()
+	if r.Header.Get("Authorization") != "Bearer at" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	switch r.URL.Path {
+	case "/api/v1/residency/cell":
+		fmt.Fprint(w, loginCellBAnswer)
+	case "/api/v1/me":
+		status, body := c.me(org)
+		w.WriteHeader(status)
+		fmt.Fprint(w, body)
+	case "/api/v1/me/orgs":
+		w.WriteHeader(c.orgsStatus)
+		fmt.Fprint(w, c.orgsBody)
+	default:
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+// meOrgs returns the X-Organization-ID of each /me request, in order.
+func (c *reloginCell) meOrgs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var orgs []string
+	for _, r := range c.reqs {
+		if r.path == "/api/v1/me" {
+			orgs = append(orgs, r.org)
+		}
+	}
+	return orgs
+}
+
+func (c *reloginCell) asked(path string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, r := range c.reqs {
+		if r.path == path {
+			return true
+		}
+	}
+	return false
+}
+
+func newReloginAPI(t *testing.T, orgsStatus int, orgsBody string, me func(org string) (int, string)) (*reloginCell, *httptest.Server) {
+	t.Helper()
+	cell := &reloginCell{me: me, orgsStatus: orgsStatus, orgsBody: orgsBody}
+	srv := httptest.NewServer(cell)
+	t.Cleanup(srv.Close)
+	return cell, srv
+}
+
+func saveEarlierLogin(t *testing.T, url, orgID, activeOrgID string) {
+	t.Helper()
+	prev := &config.Credentials{
+		AccessToken: "old", ExpiresAt: 1, Issuer: "x", ClientID: "kemory-cli",
+		KemoryURL: url, Env: "prod", OrgID: orgID, ActiveOrgID: activeOrgID,
+	}
+	if err := prev.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustLogin(t *testing.T, apiURL string) (string, string) {
+	t.Helper()
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, apiURL)
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	return out, errOut
+}
+
+func wantSaved(t *testing.T, org, active string) *config.Credentials {
+	t.Helper()
+	c := savedCreds(t)
+	if c.OrgID != org || c.ActiveOrgID != active {
+		t.Errorf("saved org_id=%q active_org_id=%q, want %q and %q", c.OrgID, c.ActiveOrgID, org, active)
+	}
+	return c
+}
+
+func wantContains(t *testing.T, what, got string, wants ...string) {
+	t.Helper()
+	for _, w := range wants {
+		if !strings.Contains(got, w) {
+			t.Errorf("%s lacks %q: %q", what, w, got)
+		}
+	}
+}
+
+func TestReloginKeepsASelectedOrgTheUserStillBelongsTo(t *testing.T) {
+	setHome(t)
+	cell, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
+	saveEarlierLogin(t, srv.URL, "org-1", "org-2")
+
+	out, _ := mustLogin(t, srv.URL)
+
+	c := wantSaved(t, "org-1", "org-2")
+	if c.KemoryURL != srv.URL {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, srv.URL)
+	}
+	if cell.asked("/api/v1/residency/cell") {
+		t.Error("login ran home-cell discovery")
+	}
+	if got := cell.meOrgs(); len(got) < 2 || got[0] != "" || got[len(got)-1] != "org-2" {
+		t.Errorf("/me X-Organization-ID per call = %q, want first empty and a later org-2", got)
+	}
+	wantContains(t, "stdout", out, "org=org-2")
+}
+
+func TestReloginAsAnotherUserDropsTheirSelection(t *testing.T) {
+	setHome(t)
+	cell, srv := newReloginAPI(t, http.StatusOK, `[{"org_id": "org-1"}, {"org_id": "org-3"}]`, okMe)
+	saveEarlierLogin(t, srv.URL, "org-7", "org-9")
+
+	_, errOut := mustLogin(t, srv.URL)
+
+	wantSaved(t, "org-1", "")
+	wantContains(t, "stderr", errOut, "org-9 is not one of this sign-in's orgs", "kemory use")
+	for _, org := range cell.meOrgs() {
+		if org != "" {
+			t.Errorf("a /me request carried X-Organization-ID %q", org)
+		}
+	}
+}
+
+func TestReloginDropsASelectionItCannotConfirm(t *testing.T) {
+	setHome(t)
+	_, srv := newReloginAPI(t, http.StatusInternalServerError, "", okMe)
+	saveEarlierLogin(t, srv.URL, "org-1", "org-2")
+
+	_, errOut := mustLogin(t, srv.URL)
+
+	wantSaved(t, "org-1", "")
+	wantContains(t, "stderr", errOut, "Could not confirm org org-2")
+}
+
+func TestReloginDoesNotSaveASelectionWhenMeFails(t *testing.T) {
+	setHome(t)
+	_, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, func(string) (int, string) {
+		return http.StatusInternalServerError, ""
+	})
+	saveEarlierLogin(t, srv.URL, "org-1", "org-2")
+
+	_, errOut := mustLogin(t, srv.URL)
+
+	wantContains(t, "stderr", errOut, "identity lookup failed (500)")
+	wantSaved(t, "", "")
+}
+
+func TestReloginWithNoSavedSignInOrgStillSkipsDiscovery(t *testing.T) {
+	setHome(t)
+	cell, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
+	saveEarlierLogin(t, srv.URL, "", "org-2")
+
+	mustLogin(t, srv.URL)
+
+	if cell.asked("/api/v1/residency/cell") {
+		t.Error("login ran home-cell discovery")
+	}
+	wantSaved(t, "org-1", "org-2")
+}
+
+func TestReloginAfterLocalLoginCarriesNoSelection(t *testing.T) {
+	setHome(t)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeCellB(t, cellBHandler())
+	prev := &config.Credentials{
+		AccessToken: "key", ExpiresAt: 1, Issuer: "local", ClientID: "local",
+		KemoryURL: first.URL, Env: "prod", ActiveOrgID: "org-2",
+	}
+	if err := prev.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	mustLogin(t, first.URL)
+
+	if !first.asked("/api/v1/residency/cell") {
+		t.Error("login skipped home-cell discovery")
+	}
+	c := wantSaved(t, "org-1", "org-1")
+	if c.KemoryURL != loginCellB {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, loginCellB)
+	}
+}
+
+func TestReloginWithTheSignInOrgSelectedStillRunsDiscovery(t *testing.T) {
+	setHome(t)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	cellB := &reloginCell{me: okMe, orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo}
+	routeCellB(t, cellB)
+	saveEarlierLogin(t, first.URL, "org-1", "org-1")
+
+	mustLogin(t, first.URL)
+
+	if !first.asked("/api/v1/residency/cell") {
+		t.Error("login skipped home-cell discovery")
+	}
+	c := wantSaved(t, "org-1", "org-1")
+	if c.KemoryURL != loginCellB {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, loginCellB)
+	}
+	for _, org := range cellB.meOrgs() {
+		if org != "" {
+			t.Errorf("a /me request carried X-Organization-ID %q", org)
+		}
+	}
+}
+
+func TestReloginDropsASelectionTheOrgRefuses(t *testing.T) {
+	setHome(t)
+	_, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, func(org string) (int, string) {
+		if org == "org-2" {
+			return http.StatusForbidden, `{"detail": "not a member"}`
+		}
+		return http.StatusOK, meBody
+	})
+	saveEarlierLogin(t, srv.URL, "org-1", "org-2")
+
+	out, errOut := mustLogin(t, srv.URL)
+
+	c := wantSaved(t, "org-1", "")
+	if c.KemoryURL != srv.URL {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, srv.URL)
+	}
+	wantContains(t, "stderr", errOut, "Could not use org org-2 after sign-in (403)")
+	wantContains(t, "stdout", out, "org=org-1")
+}
+
+// crossCells serves the zurich and mumbai hosts in-process. The sign-in org
+// org-1 lives on mumbai and the selected org org-2 on zurich. zurichMe
+// decides how zurich answers /me with org-2 selected.
+func crossCells(t *testing.T, zurichWithOrg2 func() (int, string)) (zurich, mumbai *reloginCell) {
+	t.Helper()
+	zurich = &reloginCell{orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo, me: func(org string) (int, string) {
+		if org == "org-2" {
+			return zurichWithOrg2()
+		}
+		return http.StatusForbidden, refusalNaming(mumbaiAPI)
+	}}
+	mumbai = &reloginCell{orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo, me: func(org string) (int, string) {
+		if org == "org-2" {
+			return http.StatusForbidden, refusalNaming(zurichAPI)
+		}
+		return http.StatusOK, meBody
+	}}
+	routeHost(t, "api.kemory.s9n.ai", zurich)
+	routeHost(t, "api.kemory.in.sekondbrain.ai", mumbai)
+	return zurich, mumbai
+}
+
+func TestReloginFollowsTheSelectedOrgToItsCell(t *testing.T) {
+	setHome(t)
+	zurich, _ := crossCells(t, func() (int, string) { return http.StatusOK, meBody })
+	saveEarlierLogin(t, zurichAPI, "org-1", "org-2")
+
+	out, _ := mustLogin(t, zurichAPI)
+
+	c := wantSaved(t, "org-1", "org-2")
+	if c.KemoryURL != zurichAPI {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, zurichAPI)
+	}
+	if zurich.asked("/api/v1/residency/cell") {
+		t.Error("zurich was asked for home-cell discovery")
+	}
+	wantContains(t, "stdout", out, "org=org-2")
+}
+
+func TestReloginRestoresTheCellWhenTheSelectedOrgsCellRefusesToo(t *testing.T) {
+	setHome(t)
+	crossCells(t, func() (int, string) { return http.StatusForbidden, refusalNaming(mumbaiAPI) })
+	saveEarlierLogin(t, zurichAPI, "org-1", "org-2")
+
+	_, errOut := mustLogin(t, zurichAPI)
+
+	c := wantSaved(t, "org-1", "")
+	if c.KemoryURL != mumbaiAPI {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, mumbaiAPI)
+	}
+	wantContains(t, "stderr", errOut, "Could not use org org-2 after sign-in (its region could not be reached)")
+}
