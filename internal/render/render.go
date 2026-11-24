@@ -38,8 +38,8 @@ func Configure(disableColor, json, q bool) {
 // JSONMode reports whether the caller asked for machine-readable output.
 func JSONMode() bool { return jsonMode }
 
-// isTerminal is a variable so tests can stand in a terminal.
-var isTerminal = func(w io.Writer) bool {
+// IsTerminal reports whether w is a terminal. Overridable in tests.
+var IsTerminal = func(w io.Writer) bool {
 	f, ok := w.(*os.File)
 	return ok && term.IsTerminal(int(f.Fd()))
 }
@@ -67,7 +67,7 @@ var (
 
 // styled reports whether w gets the full look.
 func styled(w io.Writer) bool {
-	return !noColor && isTerminal(w) && os.Getenv("KEMORY_ACCESSIBLE") != "1"
+	return !noColor && IsTerminal(w) && os.Getenv("KEMORY_ACCESSIBLE") != "1"
 }
 
 // Styled reports whether human output on stdout gets the full look.
@@ -102,7 +102,7 @@ func indentLines(w io.Writer, text string) string {
 }
 
 func paint(w io.Writer, style, text string) string {
-	if noColor || style == "" || !isTerminal(w) {
+	if noColor || style == "" || !IsTerminal(w) {
 		return text
 	}
 	return "\x1b[" + style + "m" + text + "\x1b[0m"

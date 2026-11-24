@@ -19,17 +19,17 @@ func strip(s string) string { return sgr.ReplaceAllString(s, "") }
 func styledTerminal(t *testing.T, width int) (out, errOut *strings.Builder) {
 	t.Helper()
 	oldOut, oldErr := Out, Err
-	oldIsTerminal, oldWidth, oldLabel := isTerminal, terminalWidth, CheckLabelWidth
+	oldIsTerminal, oldWidth, oldLabel := IsTerminal, terminalWidth, CheckLabelWidth
 	out, errOut = &strings.Builder{}, &strings.Builder{}
 	Out, Err = out, errOut
-	isTerminal = func(io.Writer) bool { return true }
+	IsTerminal = func(io.Writer) bool { return true }
 	terminalWidth = func(io.Writer) int { return width }
 	t.Setenv("NO_COLOR", "")
 	t.Setenv("KEMORY_ACCESSIBLE", "")
 	Configure(false, false, false)
 	t.Cleanup(func() {
 		Out, Err = oldOut, oldErr
-		isTerminal, terminalWidth, CheckLabelWidth = oldIsTerminal, oldWidth, oldLabel
+		IsTerminal, terminalWidth, CheckLabelWidth = oldIsTerminal, oldWidth, oldLabel
 		Configure(false, false, false)
 	})
 	return out, errOut
