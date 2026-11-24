@@ -249,3 +249,62 @@ func TestEntryCommandReadsEachConfigShape(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveEntriesEmptiesASymlinkedTarget(t *testing.T) {
+	cases := []struct {
+		name, host string
+		link       func() string
+		content    string
+		want       string
+	}{
+		{"cursor json", "cursor", func() string { return filepath.Join(home(), ".cursor", "mcp.json") },
+			`{"mcpServers": {"kemory": {"command": "npx"}}}`, "{}\n"},
+		{"codex toml", "codex", func() string { return filepath.Join(home(), ".codex", "config.toml") },
+			"[mcp_servers.kemory]\ncommand = \"npx\"\n", ""},
+		{"zed jsonc", "zed", func() string { return filepath.Join(userConfigDir(), "zed", "settings.json") },
+			`{"context_servers": {"kemory": {"command": "npx"}}}`, "{}\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := setHome(t)
+			target := filepath.Join(dir, "dotfiles", filepath.Base(c.link()))
+			mustWrite(t, target, c.content)
+			if err := os.Chmod(target, 0o640); err != nil {
+				t.Fatal(err)
+			}
+			link := c.link()
+			if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, link); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+
+			if err := RemoveEntries(c.host, link, []string{"kemory"}); err != nil {
+				t.Fatal(err)
+			}
+
+			if got, err := os.Readlink(link); err != nil || got != target {
+				t.Fatalf("link: %q, %v; want %q", got, err, target)
+			}
+			body, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(body) != c.want || strings.Contains(string(body), "kemory") {
+				t.Fatalf("target: %q, want %q", body, c.want)
+			}
+			if runtime.GOOS != "windows" {
+				if info, err := os.Stat(target); err != nil || info.Mode().Perm() != 0o640 {
+					t.Fatalf("target mode: %v, %v", info, err)
+				}
+			}
+			for _, d := range []string{filepath.Dir(link), filepath.Dir(target)} {
+				tmps, _ := filepath.Glob(filepath.Join(d, ".*.tmp"))
+				if len(tmps) != 0 {
+					t.Fatalf("temp files left in %s: %v", d, tmps)
+				}
+			}
+		})
+	}
+}

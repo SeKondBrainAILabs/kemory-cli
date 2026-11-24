@@ -546,6 +546,19 @@ func RemoveEntries(name, path string, servers []string) error {
 	if err != nil || emptied == "" {
 		return err
 	}
+	// A symlinked config is the user's (often a dotfiles repo): empty the file
+	// it points to and keep the link, so a later sync does not bring the entry back.
+	if info, err := os.Lstat(emptied); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		resolved, err := filepath.EvalSymlinks(emptied)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", emptied, err)
+		}
+		body := []byte("{}\n")
+		if h.toml {
+			body = []byte{}
+		}
+		return writeFile(resolved, body)
+	}
 	if err := os.Remove(emptied); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
