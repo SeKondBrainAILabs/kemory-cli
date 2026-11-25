@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -15,7 +17,10 @@ import (
 	"github.com/SeKondBrainAILabs/kemory-cli/internal/residency"
 )
 
-const loginCellB = "https://api.kemory.in.sekondbrain.ai"
+const (
+	loginCellA = "https://api.kemory.s9n.ai"
+	loginCellB = "https://api.kemory.in.sekondbrain.ai"
+)
 
 // loginIssuer is a fake identity provider that completes the device flow with
 // the access token "at".
@@ -170,9 +175,10 @@ func savedCreds(t *testing.T) *config.Credentials {
 func TestLoginMovesToTheOrgsAllowlistedHomeCell(t *testing.T) {
 	setHome(t)
 	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 	routeCellB(t, cellBHandler())
 
-	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, "")
 
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
@@ -194,9 +200,10 @@ func TestLoginMovesToTheOrgsAllowlistedHomeCell(t *testing.T) {
 func TestLoginSavesTheHomeCellEvenWhenItCannotBeReachedAfterwards(t *testing.T) {
 	setHome(t)
 	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 	routeCellB(t, nil)
 
-	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, "")
 
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
@@ -218,8 +225,9 @@ func TestLoginStaysPutWhenTheHomeCellIsNotATrustedHost(t *testing.T) {
 	// assertions below instead of panicking in the loopback guard.
 	routeHost(t, "untrusted.example.test", nil)
 	first := newLoginFirstAPI(t, `{"is_home_cell": false, "cell_hosts": {"api": "https://untrusted.example.test"}}`, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 
-	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, "")
 
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
@@ -230,7 +238,78 @@ func TestLoginStaysPutWhenTheHomeCellIsNotATrustedHost(t *testing.T) {
 	if !strings.Contains(out, "Logged in as") {
 		t.Errorf("stdout lacks the login line: %q", out)
 	}
-	if c := savedCreds(t); c.KemoryURL != first.URL {
+	if !first.asked("/api/v1/residency/cell") {
+		t.Error("login never asked the prod host for the home cell")
+	}
+	if c := savedCreds(t); c.KemoryURL != loginCellA {
+		t.Errorf("saved kemory_url = %q, want %q", c.KemoryURL, loginCellA)
+	}
+}
+
+// An explicit KEMORY_URL is never moved, even when it is a compiled-in cell
+// and the server names the other one.
+func TestLoginSkipsHomeCellDiscoveryForAnExplicitAllowlistedBase(t *testing.T) {
+	setHome(t)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
+	// Unreachable, so a wrong move fails the assertions instead of panicking.
+	routeCellB(t, nil)
+
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, loginCellA)
+
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	if first.asked("/api/v1/residency/cell") {
+		t.Error("login asked an explicit KEMORY_URL base for the home cell")
+	}
+	if strings.Contains(errOut, "lives in another region") {
+		t.Errorf("login moved away from KEMORY_URL: %q", errOut)
+	}
+	if c := savedCreds(t); c.KemoryURL != loginCellA {
+		t.Errorf("saved kemory_url = %q, want %q (the KEMORY_URL base)", c.KemoryURL, loginCellA)
+	}
+}
+
+// A profile whose base is not a compiled-in cell (a staging or self-hosted
+// server) is never asked where the org lives, and never moved.
+func TestLoginSkipsHomeCellDiscoveryForAnUnlistedProfileBase(t *testing.T) {
+	home := setHome(t)
+	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeCellB(t, nil)
+	issuer := loginIssuer(t)
+
+	dir := filepath.Join(home, ".kemory")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	profiles := fmt.Sprintf(`{"staging": {"issuer": %q, "kemory_url": %q, "server_name": "kemory-staging"}}`, issuer.URL, first.URL)
+	if err := os.WriteFile(filepath.Join(dir, "environments.json"), []byte(profiles), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KEMORY_ENVIRONMENTS_FILE", "")
+	t.Setenv("KEMORY_URL", "")
+	t.Setenv("KEMORY_OIDC_ISSUER", issuer.URL)
+	old := auth.OpenBrowser
+	auth.OpenBrowser = func(string) error { return nil }
+	t.Cleanup(func() { auth.OpenBrowser = old })
+
+	code, out, errOut := run(t, "--env", "staging", "login", "--no-browser")
+
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	if first.asked("/api/v1/residency/cell") {
+		t.Error("login asked a non-allowlisted profile base for the home cell")
+	}
+	if strings.Contains(errOut, "lives in another region") {
+		t.Errorf("login moved away from the profile base: %q", errOut)
+	}
+	c, err := config.LoadCredentials("staging")
+	if err != nil || c == nil {
+		t.Fatalf("no saved staging credentials: %v %v", c, err)
+	}
+	if c.KemoryURL != first.URL {
 		t.Errorf("saved kemory_url = %q, want %q", c.KemoryURL, first.URL)
 	}
 }
@@ -492,16 +571,17 @@ func TestReloginWithNoSavedSignInOrgStillSkipsDiscovery(t *testing.T) {
 func TestReloginAfterLocalLoginCarriesNoSelection(t *testing.T) {
 	setHome(t)
 	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 	routeCellB(t, cellBHandler())
 	prev := &config.Credentials{
 		AccessToken: "key", ExpiresAt: 1, Issuer: "local", ClientID: "local",
-		KemoryURL: first.URL, Env: "prod", ActiveOrgID: "org-2",
+		KemoryURL: loginCellA, Env: "prod", ActiveOrgID: "org-2",
 	}
 	if err := prev.Save(); err != nil {
 		t.Fatal(err)
 	}
 
-	mustLogin(t, first.URL)
+	mustLogin(t, "")
 
 	if !first.asked("/api/v1/residency/cell") {
 		t.Error("login skipped home-cell discovery")
@@ -516,10 +596,11 @@ func TestReloginWithTheSignInOrgSelectedStillRunsDiscovery(t *testing.T) {
 	setHome(t)
 	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
 	cellB := &reloginCell{me: okMe, orgsStatus: http.StatusOK, orgsBody: orgsOneAndTwo}
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 	routeCellB(t, cellB)
-	saveEarlierLogin(t, first.URL, "org-1", "org-1")
+	saveEarlierLogin(t, loginCellA, "org-1", "org-1")
 
-	mustLogin(t, first.URL)
+	mustLogin(t, "")
 
 	if !first.asked("/api/v1/residency/cell") {
 		t.Error("login skipped home-cell discovery")

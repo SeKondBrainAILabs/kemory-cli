@@ -18,8 +18,9 @@ func TestLoginKeepsItsHostWhenDiscoveryNamesAnUnlistedHost(t *testing.T) {
 		`{"is_home_cell": false, "cell_hosts": {"api": "https://new.invalid"}}`,
 		`{"cells": {"new": {"api": "https://new.invalid"}}}`,
 		http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 
-	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, "")
 
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
@@ -29,8 +30,11 @@ func TestLoginKeepsItsHostWhenDiscoveryNamesAnUnlistedHost(t *testing.T) {
 			t.Errorf("login moved to an unlisted host (%s): %q", name, s)
 		}
 	}
-	if c := savedCreds(t); c.KemoryURL != first.URL {
-		t.Errorf("saved kemory_url = %q, want %q", c.KemoryURL, first.URL)
+	if !first.asked("/api/v1/residency/cell") {
+		t.Error("login never asked the prod host for the home cell")
+	}
+	if c := savedCreds(t); c.KemoryURL != loginCellA {
+		t.Errorf("saved kemory_url = %q, want %q", c.KemoryURL, loginCellA)
 	}
 	if first.asked("/.well-known/kemory-cells") {
 		t.Error("login asked for the cell directory")
