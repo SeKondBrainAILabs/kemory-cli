@@ -13,18 +13,19 @@ import (
 func TestReloginWithAnotherOrgSelectedSkipsHomeCellDiscovery(t *testing.T) {
 	setHome(t)
 	first := newLoginFirstAPI(t, loginCellBAnswer, "", http.StatusOK)
+	routeHost(t, "api.kemory.s9n.ai", first.Config.Handler)
 	routeCellB(t, cellBHandler())
 
 	prev := &config.Credentials{
 		AccessToken: "old", ExpiresAt: 1, Issuer: "x", ClientID: "kemory-cli",
-		KemoryURL: first.URL, Env: "prod",
+		KemoryURL: loginCellA, Env: "prod",
 		OrgID: "org-1", ActiveOrgID: "org-2",
 	}
 	if err := prev.Save(); err != nil {
 		t.Fatal(err)
 	}
 
-	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, first.URL)
+	code, out, errOut := loginAgainst(t, loginIssuer(t).URL, "")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", code, out, errOut)
 	}

@@ -497,14 +497,16 @@ func wantContains(t *testing.T, what, got string, wants ...string) {
 
 func TestReloginKeepsASelectedOrgTheUserStillBelongsTo(t *testing.T) {
 	setHome(t)
-	cell, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
-	saveEarlierLogin(t, srv.URL, "org-1", "org-2")
+	cell, _ := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
+	routeHost(t, "api.kemory.s9n.ai", cell)
+	routeCellB(t, nil)
+	saveEarlierLogin(t, loginCellA, "org-1", "org-2")
 
-	out, _ := mustLogin(t, srv.URL)
+	out, _ := mustLogin(t, "")
 
 	c := wantSaved(t, "org-1", "org-2")
-	if c.KemoryURL != srv.URL {
-		t.Errorf("saved url %q, want %q", c.KemoryURL, srv.URL)
+	if c.KemoryURL != loginCellA {
+		t.Errorf("saved url %q, want %q", c.KemoryURL, loginCellA)
 	}
 	if cell.asked("/api/v1/residency/cell") {
 		t.Error("login ran home-cell discovery")
@@ -557,10 +559,12 @@ func TestReloginDoesNotSaveASelectionWhenMeFails(t *testing.T) {
 
 func TestReloginWithNoSavedSignInOrgStillSkipsDiscovery(t *testing.T) {
 	setHome(t)
-	cell, srv := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
-	saveEarlierLogin(t, srv.URL, "", "org-2")
+	cell, _ := newReloginAPI(t, http.StatusOK, orgsOneAndTwo, okMe)
+	routeHost(t, "api.kemory.s9n.ai", cell)
+	routeCellB(t, nil)
+	saveEarlierLogin(t, loginCellA, "", "org-2")
 
-	mustLogin(t, srv.URL)
+	mustLogin(t, "")
 
 	if cell.asked("/api/v1/residency/cell") {
 		t.Error("login ran home-cell discovery")
