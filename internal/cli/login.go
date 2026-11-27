@@ -96,8 +96,9 @@ func loginDeviceFlow(g *globals, openBrowser bool) error {
 	// the token's org, so it is skipped when another org is selected. The guard
 	// uses the previous login's selection and sign-in org; the selection is
 	// confirmed after /me/orgs, and the confirm call below sets the selected
-	// org's cell.
-	if !residency.SelectionOverridesDiscovery(carriedActive, carriedOrg) {
+	// org's cell. An explicit KEMORY_URL or a base that is not a compiled-in
+	// cell (staging, self-hosted) is never moved, as in the MCP bridge.
+	if os.Getenv("KEMORY_URL") == "" && residency.IsAllowedAPIURL(creds.KemoryURL) && !residency.SelectionOverridesDiscovery(carriedActive, carriedOrg) {
 		if home := residency.DiscoverHomeCell(creds.KemoryURL, api.Headers(creds)); home != "" {
 			creds.KemoryURL = home
 			if err := creds.Save(); err != nil {
